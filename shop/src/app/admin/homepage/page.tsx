@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Save,
   Plus,
@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 
 type Section = {
   id: string
@@ -32,6 +33,7 @@ type Section = {
 
 export default function HomepageManagementPage() {
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("hero")
 
   const [sections, setSections] = useState<Section[]>([
@@ -125,12 +127,63 @@ export default function HomepageManagementPage() {
     gradientTo: "#bef264",
   })
 
-  const handleSave = () => {
+  // Load settings from API on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await fetch("/api/settings/homepage")
+        const data = await response.json()
+
+        if (data.hero) setHeroData(data.hero)
+        if (data.marquee) setMarqueeData(data.marquee)
+        if (data.categories) setCategoriesData(data.categories)
+        if (data.products) setProductsData(data.products)
+        if (data.features) setFeaturesData(data.features)
+        if (data.cta) setCtaData(data.cta)
+        if (data.sections) {
+          setSections(data.sections.map((s: Section) => ({ ...s, isExpanded: false })))
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error)
+        toast.error("Ошибка загрузки настроек")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadSettings()
+  }, [])
+
+  const handleSave = async () => {
     setIsSaving(true)
-    // Here you would save to database/API
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/settings/homepage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hero: heroData,
+          marquee: marqueeData,
+          categories: categoriesData,
+          products: productsData,
+          features: featuresData,
+          cta: ctaData,
+          sections: sections.map(s => ({ id: s.id, name: s.name, isVisible: s.isVisible })),
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast.success("Настройки сохранены!")
+      } else {
+        toast.error("Ошибка сохранения")
+      }
+    } catch (error) {
+      console.error("Error saving settings:", error)
+      toast.error("Ошибка сохранения")
+    } finally {
       setIsSaving(false)
-    }, 1000)
+    }
   }
 
   const toggleSection = (id: string) => {
@@ -153,6 +206,17 @@ export default function HomepageManagementPage() {
     { id: "features", label: "Преимущества" },
     { id: "cta", label: "CTA" },
   ]
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-500">Загрузка настроек...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
