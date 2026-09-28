@@ -2,20 +2,43 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
 export default function LoginPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
-    // TODO: Implement login logic
-    setTimeout(() => setIsLoading(false), 1000)
+    setError("")
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    })
+
+    setIsLoading(false)
+
+    if (result?.error) {
+      setError("Неверный email или пароль")
+      return
+    }
+
+    const callbackUrl = searchParams.get("callbackUrl") || "/admin"
+    router.push(callbackUrl)
+    router.refresh()
   }
 
   return (
@@ -28,11 +51,14 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Email или телефон</label>
+              <label className="block text-sm font-medium mb-1">Email</label>
               <Input
-                type="text"
-                placeholder="email@example.com или +998..."
+                type="email"
+                placeholder="admin@shop.uz"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
               />
             </div>
             <div>
@@ -41,7 +67,10 @@ export default function LoginPage() {
                 <Input
                   type={showPassword ? "text" : "password"}
                   placeholder="Введите пароль"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
                 <Button
                   type="button"
@@ -58,26 +87,15 @@ export default function LoginPage() {
                 </Button>
               </div>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" className="rounded" />
-                Запомнить меня
-              </label>
-              <Link href="/forgot-password" className="text-primary hover:underline">
-                Забыли пароль?
-              </Link>
-            </div>
+
+            {error && (
+              <p className="text-sm text-red-600">{error}</p>
+            )}
+
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Вход..." : "Войти"}
             </Button>
           </form>
-
-          <div className="mt-6 text-center text-sm">
-            Нет аккаунта?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Зарегистрироваться
-            </Link>
-          </div>
 
           <div className="mt-4">
             <Link href="/" className="block text-center text-sm text-gray-500 hover:text-primary">
