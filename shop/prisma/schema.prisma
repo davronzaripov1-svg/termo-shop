@@ -529,3 +529,45 @@ model Page {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+
+// ==================== DESIGN LIBRARY ====================
+
+model Design {
+  id              String       @id @default(cuid())
+  code            String       @unique
+  title           String
+  series          String
+  seriesCode      String
+  designType      String
+  version         Int          @default(1)
+  previewUrl      String?
+  storageLocation String?
+  driveFolderId   String?
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  files           DesignFile[]
+
+  @@index([designType])
+  @@index([series])
+  @@index([seriesCode])
+}
+
+model DesignFile {
+  id          String   @id @default(cuid())
+  designId    String
+  fileType    String
+  driveFileId String   @unique
+  filename    String
+  mimeType    String?
+  sizeBytes   BigInt   @default(0)
+  version     Int      @default(1)
+  isCurrent   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  design Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  @@index([designId])
+  @@index([fileType])
+}
