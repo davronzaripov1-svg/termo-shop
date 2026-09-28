@@ -17,6 +17,7 @@ import {
   X,
   Bell,
   Home,
+  Files,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Главная страница", href: "/admin/homepage", icon: Home },
   { name: "Товары", href: "/admin/products", icon: Package },
+  { name: "База дизайнов", href: "/admin/designs", icon: Files },
   { name: "Категории", href: "/admin/categories", icon: FolderTree },
   { name: "Заказы", href: "/admin/orders", icon: ShoppingCart },
   { name: "Клиенты", href: "/admin/customers", icon: Users },
