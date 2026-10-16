@@ -1,7 +1,12 @@
 import Link from "next/link"
-import { Phone, Mail, MapPin, Send } from "lucide-react"
+import { Phone, Mail, MapPin, Send, Camera } from "lucide-react"
+import { getSiteSettings, telHref, telegramHref } from "@/lib/settings"
 
-export default function Footer() {
+export default async function Footer() {
+  const site = await getSiteSettings()
+  const telegram = telegramHref(site.telegram)
+  const instagram = site.instagram.replace(/^@/, "")
+
   return (
     <footer className="bg-gray-900 text-gray-300">
       <div className="container mx-auto px-4 py-12">
@@ -12,18 +17,18 @@ export default function Footer() {
               <span>Termo</span>
               <span className="text-primary">stik</span>
             </h3>
-            <p className="text-sm mb-4">
-              Термотрансферы, виниловые наклейки, DTF и UV DTF печать. Быстрая доставка по всему Узбекистану.
-            </p>
+            <p className="text-sm mb-4">{site.description}</p>
             <div className="flex gap-4">
-              <a
-                href="https://t.me/termostik"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white transition-colors"
-              >
-                <Send className="h-5 w-5" />
-              </a>
+              {telegram && (
+                <a href={telegram} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="Telegram">
+                  <Send className="h-5 w-5" />
+                </a>
+              )}
+              {instagram && (
+                <a href={`https://instagram.com/${instagram}`} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="Instagram">
+                  <Camera className="h-5 w-5" />
+                </a>
+              )}
             </div>
           </div>
 
@@ -95,25 +100,28 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4">Контакты</h4>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-2">
-                <Phone className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div>
-                  <a href="tel:+998901234567" className="hover:text-white transition-colors">
-                    +998 90 123 45 67
-                  </a>
-                  <p className="text-xs text-gray-500">Пн-Сб: 9:00 - 18:00</p>
-                </div>
-              </li>
-              <li className="flex items-center gap-2">
-                <Mail className="h-4 w-4 flex-shrink-0" />
-                <a href="mailto:info@termostik.uz" className="hover:text-white transition-colors">
-                  info@termostik.uz
-                </a>
-              </li>
-              <li className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>г. Ташкент, ул. Примерная, 123</span>
-              </li>
+              {site.phone && (
+                <li className="flex items-start gap-2">
+                  <Phone className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <a href={telHref(site.phone)} className="hover:text-white transition-colors block">{site.phone}</a>
+                    {site.phone2 && <a href={telHref(site.phone2)} className="hover:text-white transition-colors block">{site.phone2}</a>}
+                    {site.workingHours && <p className="text-xs text-gray-500">{site.workingHours}</p>}
+                  </div>
+                </li>
+              )}
+              {site.email && (
+                <li className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 flex-shrink-0" />
+                  <a href={`mailto:${site.email}`} className="hover:text-white transition-colors">{site.email}</a>
+                </li>
+              )}
+              {site.address && (
+                <li className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>{site.address}</span>
+                </li>
+              )}
             </ul>
           </div>
         </div>

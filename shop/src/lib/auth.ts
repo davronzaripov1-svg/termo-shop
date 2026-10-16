@@ -1,11 +1,15 @@
-import NextAuth from "next-auth"
-import { PrismaAdapter } from "@auth/prisma-adapter"
+import NextAuth, { CredentialsSignin } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import { prisma } from "./prisma"
+import { isStaffRole } from "./roles"
+
+/** Пароль верный, но аккаунт заблокирован — показываем это, а не «неверный пароль» */
+export class AccountBlockedError extends CredentialsSignin {
+  code = "blocked"
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
@@ -15,40 +19,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Credentials({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        login: { label: "Email или телефон", type: "text" },
+        password: { label: "Пароль", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        const login = String(credentials?.login ?? "").trim()
+        const password = String(credentials?.password ?? "")
+        if (!login || !password) {
           return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+        const user = await prisma.user.findFirst({
+          where: login.includes("@")
+            ? { email: login.toLowerCase() }
+            : { phone: normalizePhone(login) },
           include: { role: true },
         })
 
-        if (!user || !user.password) {
+        if (!user) {
           return null
         }
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        )
-
+        const isPasswordValid = await bcrypt.compare(password, user.password)
         if (!isPasswordValid) {
           return null
         }
-
         if (!user.isActive) {
-          return null
+          throw new AccountBlockedError()
         }
 
         return {
           id: user.id,
           email: user.email,
-          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email,
           role: user.role.name,
         }
       },
@@ -58,7 +61,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = (user as any).role
+        token.role = user.role
       }
       return token
     },
@@ -71,6 +74,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 })
+
+/** Сессия сотрудника или null — для проверок в серверном коде и API. */
+export async function getStaffSession() {
+  const session = await auth()
+  return session?.user && isStaffRole(session.user.role) ? session : null
+}
+
+/** "+998 90 123-45-67" -> "+998901234567" */
+export function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "")
+  return digits ? `+${digits}` : ""
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12)

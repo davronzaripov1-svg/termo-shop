@@ -1,100 +1,119 @@
-"use client"
-
-import { useState } from "react"
 import Link from "next/link"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Copy, Eye, EyeOff } from "lucide-react"
+import { Prisma, ProductStatus } from "@prisma/client"
+import { Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { EmptyRow, Pagination } from "@/components/admin/ui"
+import { ProductRowActions } from "@/components/admin/products/ProductRowActions"
+import { ProductImage } from "@/components/shop/ProductImage"
+import { prisma } from "@/lib/prisma"
+import { PRODUCT_STATUS_LABELS } from "@/lib/labels"
+import { formatSum } from "@/lib/utils"
 
-const products = [
-  { id: "1", name: "Смартфон Premium X", sku: "SM-001", price: 4500000, stock: 15, category: "Электроника", status: "ACTIVE" },
-  { id: "2", name: "Наушники Wireless Pro", sku: "HP-002", price: 890000, stock: 2, category: "Электроника", status: "ACTIVE" },
-  { id: "3", name: "Умные часы Smart Watch", sku: "SW-003", price: 1200000, stock: 0, category: "Электроника", status: "OUT_OF_STOCK" },
-  { id: "4", name: "Портативная колонка Bass", sku: "SP-004", price: 450000, stock: 25, category: "Электроника", status: "ACTIVE" },
-  { id: "5", name: "Футболка Classic", sku: "CL-005", price: 150000, stock: 100, category: "Одежда", status: "ACTIVE" },
-  { id: "6", name: "Джинсы Premium", sku: "JN-006", price: 450000, stock: 45, category: "Одежда", status: "ACTIVE" },
-  { id: "7", name: "Кроссовки Sport", sku: "SH-007", price: 890000, stock: 30, category: "Спорт", status: "ACTIVE" },
-  { id: "8", name: "Гантели 10кг", sku: "GN-008", price: 320000, stock: 12, category: "Спорт", status: "DISCONTINUED" },
-]
+export const metadata = { title: "Товары" }
 
-function formatPrice(price: number) {
-  return new Intl.NumberFormat("ru-RU").format(price) + " сум"
-}
+const PAGE_SIZE = 30
 
-const statusColors: Record<string, string> = {
+const statusColors: Record<ProductStatus, string> = {
   ACTIVE: "bg-green-500",
   OUT_OF_STOCK: "bg-yellow-500",
   ON_ORDER: "bg-blue-500",
   DISCONTINUED: "bg-gray-500",
 }
 
-const statusLabels: Record<string, string> = {
-  ACTIVE: "Активен",
-  OUT_OF_STOCK: "Нет в наличии",
-  ON_ORDER: "Под заказ",
-  DISCONTINUED: "Снят",
-}
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>
+}) {
+  const sp = await searchParams
+  const q = sp.q?.trim()
+  const page = Math.max(1, Number(sp.page) || 1)
 
-export default function ProductsPage() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("")
+  const and: Prisma.ProductWhereInput[] = []
+  if (q) {
+    and.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { sku: { contains: q, mode: "insensitive" } }] })
+  }
+  if (sp.category) and.push({ categoryId: sp.category })
+  if (sp.status && sp.status in statusColors) and.push({ status: sp.status as ProductStatus })
+  if (sp.visibility === "hidden") and.push({ isActive: false })
+  if (sp.visibility === "visible") and.push({ isActive: true })
+  if (sp.stock === "out") and.push({ stock: 0 })
+  const where: Prisma.ProductWhereInput = { AND: and }
 
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = !selectedCategory || p.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  const [products, total, categories, lowStock] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: [{ updatedAt: "desc" }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: {
+        category: { select: { name: true } },
+        images: { orderBy: [{ isMain: "desc" }, { sortOrder: "asc" }], take: 1, select: { url: true } },
+        _count: { select: { variants: true } },
+      },
+    }),
+    prisma.product.count({ where }),
+    prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true } }),
+    // мало на складе: свободный остаток <= порога (сравнение двух колонок — только SQL)
+    prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) AS count FROM "Product"
+      WHERE "isActive" AND "stock" - "reserved" <= "lowStockThreshold"`,
+  ])
+
+  const params = { q, category: sp.category, status: sp.status, visibility: sp.visibility, stock: sp.stock }
+  const hasFilters = Object.values(params).some(Boolean)
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold">Товары</h1>
-        <Link href="/admin/products/new">
-          <Button>
+        <div>
+          <h1 className="text-2xl font-bold">Товары</h1>
+          <p className="text-sm text-gray-500">
+            Всего: {total}
+            {Number(lowStock[0]?.count ?? 0) > 0 && (
+              <> · <Link href="/admin/warehouse?filter=low" className="text-orange-600 hover:underline">мало на складе: {Number(lowStock[0].count)}</Link></>
+            )}
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/admin/products/new">
             <Plus className="h-4 w-4 mr-2" />
             Добавить товар
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <form className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Поиск по названию или артикулу..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <Input name="q" placeholder="Поиск по названию или артикулу..." className="pl-10" defaultValue={q} />
             </div>
-            <select
-              className="border rounded-lg px-3 py-2"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
+            <select name="category" className="border rounded-lg px-3 py-2 bg-white" defaultValue={sp.category ?? ""}>
               <option value="">Все категории</option>
-              <option value="Электроника">Электроника</option>
-              <option value="Одежда">Одежда</option>
-              <option value="Спорт">Спорт</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <select className="border rounded-lg px-3 py-2">
+            <select name="status" className="border rounded-lg px-3 py-2 bg-white" defaultValue={sp.status ?? ""}>
               <option value="">Все статусы</option>
-              <option value="ACTIVE">Активные</option>
-              <option value="OUT_OF_STOCK">Нет в наличии</option>
-              <option value="DISCONTINUED">Сняты</option>
+              {Object.entries(PRODUCT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
-          </div>
+            <select name="visibility" className="border rounded-lg px-3 py-2 bg-white" defaultValue={sp.visibility ?? ""}>
+              <option value="">Показ: все</option>
+              <option value="visible">На сайте</option>
+              <option value="hidden">Скрытые</option>
+            </select>
+            <div className="flex gap-2">
+              <Button type="submit">Найти</Button>
+              {hasFilters && <Button asChild variant="ghost"><Link href="/admin/products">Сбросить</Link></Button>}
+            </div>
+          </form>
         </CardContent>
       </Card>
 
-      {/* Products Table */}
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -107,74 +126,71 @@ export default function ProductsPage() {
                   <th className="p-4">Цена</th>
                   <th className="p-4">Остаток</th>
                   <th className="p-4">Статус</th>
-                  <th className="p-4">Действия</th>
+                  <th className="p-4 text-right">Действия</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          📦
-                        </div>
-                        <span className="font-medium">{product.name}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-gray-500">{product.sku}</td>
-                    <td className="p-4">{product.category}</td>
-                    <td className="p-4 font-medium">{formatPrice(product.price)}</td>
-                    <td className="p-4">
-                      <span
-                        className={
-                          product.stock <= 5
-                            ? "text-red-500 font-medium"
-                            : product.stock <= 10
-                            ? "text-yellow-500 font-medium"
-                            : ""
-                        }
-                      >
-                        {product.stock} шт
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <Badge className={statusColors[product.status]}>
-                        {statusLabels[product.status]}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" title="Редактировать">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" title="Копировать">
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" title="Удалить">
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {products.length === 0 && (
+                  <EmptyRow colSpan={7}>
+                    {hasFilters ? "Ничего не найдено" : <>Товаров пока нет. <Link href="/admin/products/new" className="text-primary hover:underline">Добавить первый</Link></>}
+                  </EmptyRow>
+                )}
+                {products.map((p) => {
+                  const free = p.stock - p.reserved
+                  return (
+                    <tr key={p.id} className={`border-b last:border-0 hover:bg-gray-50 ${p.isActive ? "" : "opacity-60"}`}>
+                      <td className="p-4">
+                        <Link href={`/admin/products/${p.id}`} className="flex items-center gap-3 group">
+                          <ProductImage src={p.images[0]?.url} alt={p.name} className="w-12 h-12 rounded-lg flex-shrink-0" />
+                          <div>
+                            <p className="font-medium group-hover:text-primary">{p.name}</p>
+                            <p className="text-xs text-gray-400">
+                              {!p.isActive && "Скрыт · "}
+                              {p._count.variants > 0 && `${p._count.variants} вар. · `}
+                              {p.isFeatured && "Хит "}
+                              {p.isNew && "Новинка"}
+                            </p>
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="p-4 text-gray-500">{p.sku}</td>
+                      <td className="p-4">{p.category.name}</td>
+                      <td className="p-4 font-medium whitespace-nowrap">
+                        {formatSum(Number(p.price))}
+                        {p.oldPrice && <span className="block text-xs text-gray-400 line-through">{formatSum(Number(p.oldPrice))}</span>}
+                      </td>
+                      <td className="p-4 whitespace-nowrap">
+                        <span className={free <= 0 ? "text-red-500 font-medium" : free <= p.lowStockThreshold ? "text-orange-500 font-medium" : ""}>
+                          {p.stock} {p.unit}
+                        </span>
+                        {p.reserved > 0 && <span className="block text-xs text-gray-400">резерв {p.reserved}</span>}
+                      </td>
+                      <td className="p-4">
+                        <Badge className={`${statusColors[p.status]} text-white border-0 whitespace-nowrap`}>
+                          {PRODUCT_STATUS_LABELS[p.status]}
+                        </Badge>
+                      </td>
+                      <td className="p-4">
+                        <ProductRowActions id={p.id} slug={p.slug} name={p.name} isActive={p.isActive} />
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
 
-      {/* Pagination */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">
-          Показано {filteredProducts.length} из {products.length} товаров
-        </p>
-        <div className="flex gap-2">
-          <Button variant="outline" disabled>
-            Назад
-          </Button>
-          <Button variant="outline">Вперед</Button>
-        </div>
-      </div>
+      <Pagination
+        path="/admin/products"
+        params={params}
+        page={page}
+        pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+        total={total}
+        shown={products.length}
+        noun="товаров"
+      />
     </div>
   )
 }

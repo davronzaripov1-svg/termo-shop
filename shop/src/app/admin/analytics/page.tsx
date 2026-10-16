@@ -1,312 +1,255 @@
-"use client"
-
-import { useState } from "react"
-import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  ShoppingCart,
-  Users,
-  Package,
-  Calendar,
-  Download,
-  ArrowUpRight,
-  ArrowDownRight,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { Prisma } from "@prisma/client"
+import { ArrowDownRight, ArrowUpRight, ShoppingCart, TrendingUp, Users, Wallet } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { SalesChart, type SalesPoint } from "@/components/admin/analytics/SalesChart"
+import { prisma } from "@/lib/prisma"
+import { change, dayStart, monthStart, pctLabel, periodTotals } from "@/lib/stats"
+import { cn, formatSum } from "@/lib/utils"
 
-const salesData = [
-  { month: "Янв", sales: 4500000, orders: 45 },
-  { month: "Фев", sales: 5200000, orders: 52 },
-  { month: "Мар", sales: 4800000, orders: 48 },
-  { month: "Апр", sales: 6100000, orders: 61 },
-  { month: "Май", sales: 5500000, orders: 55 },
-  { month: "Июн", sales: 7200000, orders: 72 },
-  { month: "Июл", sales: 6800000, orders: 68 },
-  { month: "Авг", sales: 7500000, orders: 75 },
-  { month: "Сен", sales: 8200000, orders: 82 },
-  { month: "Окт", sales: 7800000, orders: 78 },
-  { month: "Ноя", sales: 9100000, orders: 91 },
-  { month: "Дек", sales: 10500000, orders: 105 },
-]
+export const metadata = { title: "Аналитика" }
 
-const topProducts = [
-  { name: "Термотрансфер Premium A4", sales: 1250, revenue: 18750000 },
-  { name: "Виниловая пленка глянцевая", sales: 890, revenue: 7565000 },
-  { name: "DTF пленка рулон 60см", sales: 520, revenue: 18200000 },
-  { name: "UV DTF стикеры набор", sales: 480, revenue: 6000000 },
-  { name: "Порошок DTF белый 1кг", sales: 350, revenue: 5250000 },
-]
+const PERIODS = {
+  week: { label: "7 дней", days: 7 },
+  month: { label: "30 дней", days: 30 },
+  quarter: { label: "Квартал", months: 3 },
+  year: { label: "Год", months: 12 },
+} as const
+type Period = keyof typeof PERIODS
 
-const topCustomers = [
-  { name: "ИП Алиев А.А.", orders: 45, total: 12500000 },
-  { name: "ООО \"Принт Мастер\"", orders: 38, total: 9800000 },
-  { name: "Рекламное агентство \"Брэнд\"", orders: 32, total: 8500000 },
-  { name: "ИП Каримов Б.Б.", orders: 28, total: 7200000 },
-  { name: "Типография \"Полиграф\"", orders: 25, total: 6800000 },
-]
+const TZ = "Asia/Tashkent"
+const monthNames = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
-const categoryStats = [
-  { name: "Термотрансферы", percentage: 35, color: "bg-primary" },
-  { name: "Виниловые наклейки", percentage: 25, color: "bg-blue-500" },
-  { name: "DTF печать", percentage: 20, color: "bg-purple-500" },
-  { name: "UV DTF", percentage: 12, color: "bg-orange-500" },
-  { name: "Другое", percentage: 8, color: "bg-gray-400" },
-]
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+  const { period: raw } = await searchParams
+  const period: Period = raw && raw in PERIODS ? (raw as Period) : "month"
+  const conf = PERIODS[period]
 
-function formatPrice(price: number) {
-  return new Intl.NumberFormat("ru-RU").format(price) + " сум"
-}
+  // Текущий период и такой же предыдущий для сравнения
+  const byMonth = "months" in conf
+  const to = byMonth ? monthStart(1) : dayStart(1)
+  const from = byMonth ? monthStart(1 - conf.months) : dayStart(1 - conf.days)
+  const prevFrom = byMonth ? monthStart(1 - 2 * conf.months) : dayStart(1 - 2 * conf.days)
 
-export default function AnalyticsPage() {
-  const [period, setPeriod] = useState("month")
+  const sold: Prisma.OrderWhereInput = { status: { not: "CANCELLED" }, createdAt: { gte: from, lt: to } }
 
-  const totalRevenue = salesData.reduce((acc, d) => acc + d.sales, 0)
-  const totalOrders = salesData.reduce((acc, d) => acc + d.orders, 0)
-  const avgOrderValue = Math.round(totalRevenue / totalOrders)
-  const maxSales = Math.max(...salesData.map((d) => d.sales))
+  const [current, previous, orders, topProducts, topCustomers, categories, cancelled] = await Promise.all([
+    periodTotals(from, to),
+    periodTotals(prevFrom, from),
+    prisma.order.findMany({ where: sold, select: { total: true, createdAt: true } }),
+    prisma.orderItem.groupBy({
+      by: ["productId"],
+      where: { order: sold },
+      _sum: { quantity: true, total: true },
+      orderBy: { _sum: { total: "desc" } },
+      take: 5,
+    }),
+    prisma.order.groupBy({
+      by: ["userId"],
+      where: sold,
+      _sum: { total: true },
+      _count: { _all: true },
+      orderBy: { _sum: { total: "desc" } },
+      take: 5,
+    }),
+    prisma.$queryRaw<{ name: string; revenue: string; quantity: number }[]>`
+      SELECT c."name", SUM(oi."total")::text AS revenue, SUM(oi."quantity")::int AS quantity
+      FROM "OrderItem" oi
+      JOIN "Order" o ON o."id" = oi."orderId"
+      JOIN "Product" p ON p."id" = oi."productId"
+      JOIN "Category" c ON c."id" = p."categoryId"
+      WHERE o."status" <> 'CANCELLED' AND o."createdAt" >= ${from} AND o."createdAt" < ${to}
+      GROUP BY c."name" ORDER BY SUM(oi."total") DESC`,
+    prisma.order.count({ where: { status: "CANCELLED", createdAt: { gte: from, lt: to } } }),
+  ])
+
+  const [products, customers] = await Promise.all([
+    prisma.product.findMany({ where: { id: { in: topProducts.map((p) => p.productId) } }, select: { id: true, name: true, unit: true } }),
+    prisma.user.findMany({
+      where: { id: { in: topCustomers.map((c) => c.userId) } },
+      select: { id: true, firstName: true, lastName: true, company: true, email: true },
+    }),
+  ])
+
+  // Столбцы графика: по дням или по месяцам, по времени Ташкента
+  const keyOf = (d: Date) => {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+    return byMonth ? parts.slice(0, 7) : parts
+  }
+  const buckets = new Map<string, SalesPoint>()
+  if (byMonth) {
+    for (let i = 0; i < conf.months; i++) {
+      const k = keyOf(monthStart(1 - conf.months + i))
+      buckets.set(k, { label: `${monthNames[Number(k.slice(5, 7)) - 1]} ${k.slice(2, 4)}`, revenue: 0, orders: 0 })
+    }
+  } else {
+    for (let i = 0; i < conf.days; i++) {
+      const k = keyOf(dayStart(1 - conf.days + i))
+      buckets.set(k, { label: `${k.slice(8, 10)}.${k.slice(5, 7)}`, revenue: 0, orders: 0 })
+    }
+  }
+  for (const o of orders) {
+    const b = buckets.get(keyOf(o.createdAt))
+    if (b) {
+      b.revenue += Number(o.total)
+      b.orders += 1
+    }
+  }
+  const series = [...buckets.values()]
+
+  const kpis = [
+    { name: "Выручка", value: formatSum(current.revenue), change: change(current.revenue, previous.revenue), icon: TrendingUp },
+    { name: "Заказов", value: String(current.orders), change: change(current.orders, previous.orders), icon: ShoppingCart },
+    { name: "Средний чек", value: formatSum(current.avgCheck), change: change(current.avgCheck, previous.avgCheck), icon: Wallet },
+    { name: "Новых клиентов", value: String(current.customers), change: change(current.customers, previous.customers), icon: Users },
+  ]
+  const categoryTotal = categories.reduce((s, c) => s + Number(c.revenue), 0)
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Аналитика</h1>
-          <p className="text-gray-500">Статистика продаж и отчеты</p>
+          <p className="text-sm text-gray-500">Без отменённых заказов{cancelled > 0 && ` · отменено за период: ${cancelled}`}</p>
         </div>
-        <div className="flex gap-2">
-          <select
-            className="px-3 py-2 border rounded-lg text-sm"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-          >
-            <option value="week">Неделя</option>
-            <option value="month">Месяц</option>
-            <option value="quarter">Квартал</option>
-            <option value="year">Год</option>
-          </select>
-          <Button variant="outline">
-            <Calendar className="h-4 w-4 mr-2" />
-            Выбрать даты
-          </Button>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Экспорт
-          </Button>
+        <div className="flex rounded-lg border bg-white p-1">
+          {(Object.keys(PERIODS) as Period[]).map((p) => (
+            <Link
+              key={p}
+              href={`/admin/analytics?period=${p}`}
+              className={cn("px-3 py-1.5 text-sm rounded-md", p === period ? "bg-primary text-white" : "hover:bg-gray-100")}
+            >
+              {PERIODS[p].label}
+            </Link>
+          ))}
         </div>
       </div>
 
-      {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500">Общая выручка</p>
-                <p className="text-2xl font-bold mt-1">{formatPrice(totalRevenue)}</p>
-                <div className="flex items-center gap-1 mt-2 text-green-600">
-                  <ArrowUpRight className="h-4 w-4" />
-                  <span className="text-sm">+12.5%</span>
+        {kpis.map((k) => (
+          <Card key={k.name}>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">{k.name}</p>
+                  <p className="text-2xl font-bold mt-1">{k.value}</p>
+                  <p className="flex items-center mt-2 text-sm">
+                    {k.change === null || k.change >= 0
+                      ? <ArrowUpRight className="h-4 w-4 text-green-600" />
+                      : <ArrowDownRight className="h-4 w-4 text-red-600" />}
+                    <span className={k.change === null || k.change >= 0 ? "text-green-600" : "text-red-600"}>{pctLabel(k.change)}</span>
+                    <span className="text-gray-400 ml-1">к прошлому периоду</span>
+                  </p>
                 </div>
+                <k.icon className="h-6 w-6 text-gray-400" />
               </div>
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <DollarSign className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500">Заказов</p>
-                <p className="text-2xl font-bold mt-1">{totalOrders}</p>
-                <div className="flex items-center gap-1 mt-2 text-green-600">
-                  <ArrowUpRight className="h-4 w-4" />
-                  <span className="text-sm">+8.3%</span>
-                </div>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <ShoppingCart className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500">Средний чек</p>
-                <p className="text-2xl font-bold mt-1">{formatPrice(avgOrderValue)}</p>
-                <div className="flex items-center gap-1 mt-2 text-green-600">
-                  <ArrowUpRight className="h-4 w-4" />
-                  <span className="text-sm">+3.8%</span>
-                </div>
-              </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500">Новых клиентов</p>
-                <p className="text-2xl font-bold mt-1">156</p>
-                <div className="flex items-center gap-1 mt-2 text-red-600">
-                  <ArrowDownRight className="h-4 w-4" />
-                  <span className="text-sm">-2.1%</span>
-                </div>
-              </div>
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Users className="h-6 w-6 text-orange-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sales Chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Динамика продаж</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-end gap-2">
-              {salesData.map((data, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                  <div
-                    className="w-full bg-primary rounded-t transition-all hover:bg-primary/80"
-                    style={{ height: `${(data.sales / maxSales) * 250}px` }}
-                    title={formatPrice(data.sales)}
-                  />
-                  <span className="text-xs text-gray-500">{data.month}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Выручка {byMonth ? "по месяцам" : "по дням"}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {current.orders === 0 ? (
+            <p className="py-16 text-center text-gray-500">За этот период продаж нет</p>
+          ) : (
+            <SalesChart data={series} />
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Category Distribution */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <TopList
+          title="Топ товаров"
+          empty="Нет продаж"
+          rows={topProducts.map((t) => {
+            const p = products.find((x) => x.id === t.productId)
+            return {
+              key: t.productId,
+              name: p?.name ?? "Удалённый товар",
+              href: p ? `/admin/products/${p.id}` : undefined,
+              sub: `${t._sum.quantity ?? 0} ${p?.unit ?? "шт"}`,
+              value: formatSum(Number(t._sum.total ?? 0)),
+            }
+          })}
+        />
+        <TopList
+          title="Топ клиентов"
+          empty="Нет заказов"
+          rows={topCustomers.map((t) => {
+            const c = customers.find((x) => x.id === t.userId)
+            return {
+              key: t.userId,
+              name: c ? [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email : "—",
+              href: c ? `/admin/customers/${c.id}` : undefined,
+              sub: [c?.company, `${t._count._all} заказ(ов)`].filter(Boolean).join(" · "),
+              value: formatSum(Number(t._sum.total ?? 0)),
+            }
+          })}
+        />
         <Card>
-          <CardHeader>
-            <CardTitle>По категориям</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>По категориям</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {categoryStats.map((cat, index) => (
-                <div key={index}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>{cat.name}</span>
-                    <span className="font-medium">{cat.percentage}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${cat.color} rounded-full`}
-                      style={{ width: `${cat.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tables Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Products */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Топ товаров
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {topProducts.map((product, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-sm">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{product.name}</p>
-                    <p className="text-sm text-gray-500">{product.sales} продаж</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatPrice(product.revenue)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Customers */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Топ клиентов
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {topCustomers.map((customer, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-sm text-primary">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{customer.name}</p>
-                    <p className="text-sm text-gray-500">{customer.orders} заказов</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatPrice(customer.total)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-primary">95%</p>
-            <p className="text-sm text-gray-500 mt-1">Выполнение заказов</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-blue-600">2.3 дня</p>
-            <p className="text-sm text-gray-500 mt-1">Среднее время доставки</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-green-600">4.8</p>
-            <p className="text-sm text-gray-500 mt-1">Средний рейтинг</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-purple-600">68%</p>
-            <p className="text-sm text-gray-500 mt-1">Повторные покупки</p>
+            {categories.length === 0 ? (
+              <p className="text-sm text-gray-500">Нет продаж</p>
+            ) : (
+              <ul className="space-y-4">
+                {categories.map((c) => {
+                  const share = categoryTotal ? Math.round((Number(c.revenue) / categoryTotal) * 100) : 0
+                  return (
+                    <li key={c.name} className="text-sm">
+                      <div className="flex justify-between gap-2 mb-1">
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-gray-600 whitespace-nowrap">{formatSum(Number(c.revenue))} · {share}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100">
+                        <div className="h-2 rounded-full bg-[#65a30d]" style={{ width: `${Math.max(share, 2)}%` }} />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
+  )
+}
+
+function TopList({ title, empty, rows }: {
+  title: string
+  empty: string
+  rows: { key: string; name: string; href?: string; sub: string; value: string }[]
+}) {
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-gray-500">{empty}</p>
+        ) : (
+          <ol className="space-y-3">
+            {rows.map((r, i) => (
+              <li key={r.key} className="flex items-center gap-3 text-sm">
+                <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  {r.href ? (
+                    <Link href={r.href} className="font-medium hover:text-primary line-clamp-1">{r.name}</Link>
+                  ) : (
+                    <p className="font-medium line-clamp-1">{r.name}</p>
+                  )}
+                  <p className="text-gray-500">{r.sub}</p>
+                </div>
+                <span className="font-semibold whitespace-nowrap">{r.value}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
   )
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getStaff, can } from "@/lib/admin"
 
 const HOMEPAGE_SETTINGS_KEY = "homepage_settings"
 
@@ -103,6 +104,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const staff = await getStaff()
+  if (!staff || !can(staff, "content")) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    )
+  }
+
   try {
     const data = await request.json()
 

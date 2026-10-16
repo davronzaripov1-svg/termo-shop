@@ -441,6 +441,7 @@ enum DiscountType {
 model StockMovement {
   id          String   @id @default(cuid())
   productId   String
+  variantId   String?  // движение по остатку варианта (ProductVariant.stock), а не товара
   type        StockMovementType
   quantity    Int
   reason      String?

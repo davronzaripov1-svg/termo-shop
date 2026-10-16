@@ -1,6 +1,10 @@
 import type { User, Role, Product, Category, Order, OrderItem } from '@prisma/client'
 
 declare module "next-auth" {
+  interface User {
+    role?: string
+  }
+
   interface Session {
     user: {
       id: string

@@ -1,17 +1,23 @@
 "use client"
 
 import Link from "next/link"
+import Form from "next/form"
 import { useState } from "react"
 import { ShoppingCart, Menu, X, Search, User, Heart, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useCartStore } from "@/store/cart"
+import { useCartHydration, useCartStore } from "@/store/cart"
+import { useFavoritesHydration, useFavoritesStore } from "@/store/favorites"
 
-export default function Header() {
+export default function Header({ phone }: { phone: string }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const itemsCount = useCartStore((state) => state.getItemsCount())
+  // Шапка есть на всех страницах магазина — здесь и подгружаем сохранённую корзину
+  useCartHydration()
+  useFavoritesHydration()
+  const favoritesCount = useFavoritesStore((state) => state.ids.length)
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white">
@@ -19,10 +25,12 @@ export default function Header() {
       <div className="hidden md:block bg-gray-100 text-sm">
         <div className="container mx-auto px-4 py-2 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <a href="tel:+998901234567" className="flex items-center gap-1 hover:text-primary">
-              <Phone className="h-4 w-4" />
-              +998 90 123 45 67
-            </a>
+            {phone && (
+              <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="flex items-center gap-1 hover:text-primary">
+                <Phone className="h-4 w-4" />
+                {phone}
+              </a>
+            )}
             <span className="text-gray-400">|</span>
             <span>Доставка по всему Узбекистану</span>
           </div>
@@ -68,14 +76,15 @@ export default function Header() {
 
           {/* Search */}
           <div className="hidden md:flex flex-1 max-w-md mx-4">
-            <div className="relative w-full">
+            <Form action="/catalog" className="relative w-full" role="search">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="search"
+                name="q"
                 placeholder="Поиск товаров..."
                 className="w-full pl-10"
               />
-            </div>
+            </Form>
           </div>
 
           {/* Actions */}
@@ -89,9 +98,14 @@ export default function Header() {
               <Search className="h-5 w-5" />
             </Button>
 
-            <Link href="/favorites">
-              <Button variant="ghost" size="icon">
+            <Link href="/favorites" className="relative" aria-label="Избранное">
+              <Button variant="ghost" size="icon" tabIndex={-1}>
                 <Heart className="h-5 w-5" />
+                {favoritesCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                    {favoritesCount}
+                  </Badge>
+                )}
               </Button>
             </Link>
 
@@ -118,15 +132,16 @@ export default function Header() {
       {/* Mobile Search */}
       {isSearchOpen && (
         <div className="md:hidden border-t p-4">
-          <div className="relative">
+          <Form action="/catalog" className="relative" role="search" onSubmit={() => setIsSearchOpen(false)}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="search"
+              name="q"
               placeholder="Поиск товаров..."
               className="w-full pl-10"
               autoFocus
             />
-          </div>
+          </Form>
         </div>
       )}
 

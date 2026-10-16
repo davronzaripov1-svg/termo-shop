@@ -3,6 +3,8 @@ import { ArrowRight, ArrowUpRight, Sparkles, Zap, Star, Play, ChevronRight, Phon
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
+import { getFeaturedProducts, getProductsByIds } from "@/lib/catalog"
+import { ProductImage } from "@/components/shop/ProductImage"
 
 const HOMEPAGE_SETTINGS_KEY = "homepage_settings"
 
@@ -53,6 +55,7 @@ const defaultSettings = {
   products: {
     title: "Популярные товары",
     badge: "Топ продаж",
+    showCount: 6,
   },
   features: {
     title: "Преимущества работы с нами",
@@ -84,16 +87,6 @@ const defaultSettings = {
   ],
 }
 
-// Featured products fallback
-const defaultProducts = [
-  { id: "1", name: "Термотрансфер Premium A4", price: 15000, oldPrice: 20000, tag: "Хит", color: "bg-orange-500" },
-  { id: "2", name: "Виниловая пленка глянцевая 50см", price: 85000, tag: "Новинка", color: "bg-purple-500" },
-  { id: "3", name: "DTF пленка рулон 60см x 100м", price: 350000, oldPrice: 420000, tag: "-17%", color: "bg-blue-500" },
-  { id: "4", name: "UV DTF стикеры набор 100шт", price: 125000, tag: "Топ", color: "bg-emerald-500" },
-  { id: "5", name: "Порошок DTF белый 1кг", price: 180000, color: "bg-amber-500" },
-  { id: "6", name: "Термопресс автомат 40x60", price: 2500000, tag: "Премиум", color: "bg-slate-700" },
-]
-
 async function getHomepageSettings() {
   try {
     const setting = await prisma.setting.findUnique({
@@ -106,33 +99,20 @@ async function getHomepageSettings() {
   }
 }
 
-async function getFeaturedProducts() {
+const cardColors = ["bg-orange-500", "bg-purple-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-slate-700"]
+
+async function getHomepageProducts(config: { showCount?: number; autoSelect?: boolean; manualProducts?: string[] } | undefined) {
+  const count = config?.showCount || 6
   try {
-    const products = await prisma.product.findMany({
-      where: { isActive: true, isFeatured: true },
-      take: 6,
-      orderBy: { views: "desc" },
-      include: { images: { where: { isMain: true }, take: 1 } },
-    })
-
-    if (products.length === 0) {
-      return defaultProducts
+    // Ручной выбор из админки; если выбранных не осталось — автоматически
+    if (config?.autoSelect === false && config.manualProducts?.length) {
+      const manual = await getProductsByIds(config.manualProducts.slice(0, count))
+      if (manual.length > 0) return manual
     }
-
-    const colors = ["bg-orange-500", "bg-purple-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-slate-700"]
-
-    return products.map((p, i) => ({
-      id: p.id,
-      name: p.name,
-      price: Number(p.price),
-      oldPrice: p.oldPrice ? Number(p.oldPrice) : undefined,
-      tag: p.isNew ? "Новинка" : p.isFeatured ? "Хит" : undefined,
-      color: colors[i % colors.length],
-      image: p.images[0]?.url,
-    }))
+    return await getFeaturedProducts(count)
   } catch (error) {
     console.error("Error loading products:", error)
-    return defaultProducts
+    return []
   }
 }
 
@@ -154,7 +134,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export default async function HomePage() {
   const settings = await getHomepageSettings()
-  const featuredProducts = await getFeaturedProducts()
+  const featuredProducts = await getHomepageProducts(settings.products)
 
   const { hero, marquee, categories, products, features, cta, sections } = settings
 
@@ -365,14 +345,18 @@ export default async function HomePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredProducts.map((product, i) => (
-                <Link key={product.id} href={`/product/${product.id}`} className="group">
+                <Link key={product.id} href={`/product/${product.slug}`} className="group">
                   <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden hover:shadow-2xl hover:shadow-gray-200/50 transition-all duration-300 hover:-translate-y-1">
                     {/* Product Image Area */}
-                    <div className={`${product.color} h-48 relative flex items-center justify-center`}>
-                      <div className="text-white/20 text-8xl font-black">0{i + 1}</div>
-                      {product.tag && (
+                    <div className={`${cardColors[i % cardColors.length]} h-48 relative flex items-center justify-center`}>
+                      {product.image ? (
+                        <ProductImage src={product.image} alt={product.name} className="absolute inset-0 h-full w-full" />
+                      ) : (
+                        <div className="text-white/20 text-8xl font-black">{String(i + 1).padStart(2, "0")}</div>
+                      )}
+                      {(product.isNew || product.isFeatured) && (
                         <Badge className="absolute top-4 left-4 bg-white text-black border-0 font-semibold">
-                          {product.tag}
+                          {product.isNew ? "Новинка" : "Хит"}
                         </Badge>
                       )}
                       <div className="absolute bottom-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

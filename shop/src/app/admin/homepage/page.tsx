@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
+import { ManualProductPicker } from "@/components/admin/homepage/ManualProductPicker"
 
 type Section = {
   id: string
@@ -100,7 +101,7 @@ export default function HomepageManagementPage() {
     badge: "Топ продаж",
     showCount: 6,
     autoSelect: true, // Automatically select top products or manual
-    manualProducts: ["1", "2", "3", "4", "5", "6"],
+    manualProducts: [] as string[],
   })
 
   // Features State
@@ -722,7 +723,7 @@ export default function HomepageManagementPage() {
                     checked={productsData.autoSelect}
                     onChange={() => setProductsData({ ...productsData, autoSelect: true })}
                   />
-                  <span>Автоматически (топ продаж)</span>
+                  <span>Автоматически (хиты, затем популярные)</span>
                 </label>
                 <label className="flex items-center gap-2">
                   <input
@@ -738,12 +739,11 @@ export default function HomepageManagementPage() {
             {!productsData.autoSelect && (
               <div>
                 <label className="block text-sm font-medium mb-2">Выберите товары</label>
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  <p className="text-gray-500 text-sm">
-                    Здесь будет список товаров для выбора. Перетащите товары для изменения порядка.
-                  </p>
-                  {/* Product selector would go here */}
-                </div>
+                <ManualProductPicker
+                  value={productsData.manualProducts ?? []}
+                  onChange={(ids) => setProductsData({ ...productsData, manualProducts: ids })}
+                  max={productsData.showCount || 6}
+                />
               </div>
             )}
           </CardContent>

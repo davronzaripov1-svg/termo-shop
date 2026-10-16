@@ -1,261 +1,187 @@
-import {
-  ShoppingCart,
-  Users,
-  Package,
-  TrendingUp,
-  AlertTriangle,
-  ArrowUpRight,
-  ArrowDownRight,
-} from "lucide-react"
+import Link from "next/link"
+import { ShoppingCart, Users, TrendingUp, AlertTriangle, ArrowUpRight, ArrowDownRight, Wallet, ShieldAlert } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { OrderStatus } from "@/components/admin/ui"
+import { PERMISSIONS, can, getStaff, type Permission } from "@/lib/admin"
+import { prisma } from "@/lib/prisma"
+import { change, lowStockProducts, monthStart, pctLabel, periodTotals } from "@/lib/stats"
+import { formatDateTime, formatSum } from "@/lib/utils"
 
-const stats = [
-  {
-    name: "Продажи сегодня",
-    value: "12 500 000 сум",
-    change: "+12%",
-    changeType: "positive",
-    icon: TrendingUp,
-  },
-  {
-    name: "Новые заказы",
-    value: "24",
-    change: "+5",
-    changeType: "positive",
-    icon: ShoppingCart,
-  },
-  {
-    name: "Клиенты",
-    value: "1 234",
-    change: "+18",
-    changeType: "positive",
-    icon: Users,
-  },
-  {
-    name: "Товары",
-    value: "456",
-    change: "-2",
-    changeType: "negative",
-    icon: Package,
-  },
-]
+export const metadata = { title: "Dashboard" }
 
-const recentOrders = [
-  {
-    id: "ORDER-2026-000024",
-    customer: "Иван Петров",
-    phone: "+998 90 123 45 67",
-    total: "450 000 сум",
-    status: "NEW",
-    date: "10 сен 2026, 14:30",
-  },
-  {
-    id: "ORDER-2026-000023",
-    customer: "Мария Сидорова",
-    phone: "+998 91 234 56 78",
-    total: "1 200 000 сум",
-    status: "PROCESSING",
-    date: "10 сен 2026, 12:15",
-  },
-  {
-    id: "ORDER-2026-000022",
-    customer: "Алексей Козлов",
-    phone: "+998 93 345 67 89",
-    total: "890 000 сум",
-    status: "PICKING",
-    date: "10 сен 2026, 10:00",
-  },
-  {
-    id: "ORDER-2026-000021",
-    customer: "Елена Новикова",
-    phone: "+998 94 456 78 90",
-    total: "2 100 000 сум",
-    status: "READY",
-    date: "09 сен 2026, 18:45",
-  },
-  {
-    id: "ORDER-2026-000020",
-    customer: "Дмитрий Волков",
-    phone: "+998 95 567 89 01",
-    total: "650 000 сум",
-    status: "COMPLETED",
-    date: "09 сен 2026, 15:20",
-  },
-]
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ denied?: string }>
+}) {
+  const staff = (await getStaff())!
+  const { denied } = await searchParams
+  const seeOrders = can(staff, "orders")
+  const seeStock = can(staff, "warehouse") || can(staff, "products")
 
-const lowStockProducts = [
-  { name: "Смартфон Premium X", sku: "SM-001", stock: 3, threshold: 5 },
-  { name: "Наушники Wireless Pro", sku: "HP-002", stock: 2, threshold: 10 },
-  { name: "Умные часы Smart Watch", sku: "SW-003", stock: 4, threshold: 5 },
-]
+  const [current, previous, recentOrders, lowStock, counters] = await Promise.all([
+    seeOrders ? periodTotals(monthStart(0), monthStart(1)) : null,
+    seeOrders ? periodTotals(monthStart(-1), monthStart(0)) : null,
+    seeOrders
+      ? prisma.order.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 6,
+          select: { id: true, orderNumber: true, customerName: true, total: true, status: true, createdAt: true },
+        })
+      : [],
+    seeStock ? lowStockProducts(6) : [],
+    seeOrders
+      ? Promise.all([
+          prisma.order.count({ where: { status: "NEW" } }),
+          prisma.order.count({ where: { status: { in: ["CONFIRMED", "PROCESSING", "PICKING", "READY"] } } }),
+          prisma.order.count({ where: { status: { not: "CANCELLED" }, paymentStatus: "PENDING" } }),
+          prisma.order.count({ where: { status: "SHIPPING" } }),
+        ])
+      : null,
+  ])
 
-const statusColors: Record<string, string> = {
-  NEW: "bg-blue-500",
-  CONFIRMED: "bg-indigo-500",
-  PROCESSING: "bg-yellow-500",
-  PICKING: "bg-orange-500",
-  READY: "bg-teal-500",
-  SHIPPING: "bg-purple-500",
-  DELIVERED: "bg-green-500",
-  COMPLETED: "bg-green-700",
-  CANCELLED: "bg-red-500",
-}
+  const stats = current && previous
+    ? [
+        { name: "Выручка за месяц", value: formatSum(current.revenue), change: change(current.revenue, previous.revenue), icon: TrendingUp },
+        { name: "Заказов за месяц", value: String(current.orders), change: change(current.orders, previous.orders), icon: ShoppingCart },
+        { name: "Средний чек", value: formatSum(current.avgCheck), change: change(current.avgCheck, previous.avgCheck), icon: Wallet },
+        { name: "Новых клиентов", value: String(current.customers), change: change(current.customers, previous.customers), icon: Users },
+      ]
+    : []
 
-const statusLabels: Record<string, string> = {
-  NEW: "Новый",
-  CONFIRMED: "Подтвержден",
-  PROCESSING: "В обработке",
-  PICKING: "Комплектуется",
-  READY: "Готов",
-  SHIPPING: "Доставка",
-  DELIVERED: "Доставлен",
-  COMPLETED: "Завершен",
-  CANCELLED: "Отменен",
-}
-
-export default function AdminDashboard() {
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Здравствуйте, {staff.name}</h1>
+        <p className="text-sm text-gray-500">{staff.roleDisplayName}</p>
+      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.name}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">{stat.name}</p>
-                  <p className="text-2xl font-bold mt-1">{stat.value}</p>
-                  <div className="flex items-center mt-2">
-                    {stat.changeType === "positive" ? (
-                      <ArrowUpRight className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <ArrowDownRight className="h-4 w-4 text-red-500" />
-                    )}
-                    <span
-                      className={
-                        stat.changeType === "positive"
-                          ? "text-green-500 text-sm"
-                          : "text-red-500 text-sm"
-                      }
-                    >
-                      {stat.change}
-                    </span>
-                    <span className="text-gray-400 text-sm ml-1">vs вчера</span>
+      {denied && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <ShieldAlert className="h-4 w-4" />
+          Нет доступа к разделу «{PERMISSIONS[denied as Permission] ?? denied}». Обратитесь к администратору.
+        </div>
+      )}
+
+      {stats.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat) => (
+            <Card key={stat.name}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">{stat.name}</p>
+                    <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                    <div className="flex items-center mt-2 text-sm">
+                      {stat.change === null || stat.change >= 0 ? (
+                        <ArrowUpRight className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <ArrowDownRight className="h-4 w-4 text-red-500" />
+                      )}
+                      <span className={stat.change === null || stat.change >= 0 ? "text-green-500" : "text-red-500"}>
+                        {pctLabel(stat.change)}
+                      </span>
+                      <span className="text-gray-400 ml-1">к прошлому месяцу</span>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <stat.icon className="h-6 w-6 text-primary" />
                   </div>
                 </div>
-                <div className="p-3 bg-primary/10 rounded-lg">
-                  <stat.icon className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {counters && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: "Новые заказы", value: counters[0], href: "/admin/orders?status=NEW", color: "text-blue-600" },
+            { label: "В работе", value: counters[1], href: "/admin/orders", color: "text-yellow-600" },
+            { label: "Ждут оплаты", value: counters[2], href: "/admin/orders", color: "text-orange-600" },
+            { label: "В доставке", value: counters[3], href: "/admin/orders?status=SHIPPING", color: "text-purple-600" },
+          ].map((c) => (
+            <Link key={c.label} href={c.href}>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4 text-center">
+                  <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+                  <p className="text-sm text-gray-500">{c.label}</p>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Orders */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Последние заказы</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left text-sm text-gray-500 border-b">
-                    <th className="pb-3">Заказ</th>
-                    <th className="pb-3">Клиент</th>
-                    <th className="pb-3">Сумма</th>
-                    <th className="pb-3">Статус</th>
-                    <th className="pb-3">Дата</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((order) => (
-                    <tr key={order.id} className="border-b last:border-0">
-                      <td className="py-3">
-                        <span className="font-medium">{order.id}</span>
-                      </td>
-                      <td className="py-3">
-                        <div>
-                          <p className="font-medium">{order.customer}</p>
-                          <p className="text-sm text-gray-500">{order.phone}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 font-medium">{order.total}</td>
-                      <td className="py-3">
-                        <Badge className={statusColors[order.status]}>
-                          {statusLabels[order.status]}
-                        </Badge>
-                      </td>
-                      <td className="py-3 text-sm text-gray-500">{order.date}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Low Stock Alert */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              Низкий остаток
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {lowStockProducts.map((product) => (
-                <div
-                  key={product.sku}
-                  className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{product.name}</p>
-                    <p className="text-sm text-gray-500">{product.sku}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-yellow-600">{product.stock} шт</p>
-                    <p className="text-xs text-gray-500">мин: {product.threshold}</p>
-                  </div>
+        {seeOrders && (
+          <Card className={seeStock ? "lg:col-span-2" : "lg:col-span-3"}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle>Последние заказы</CardTitle>
+              <Link href="/admin/orders" className="text-sm text-primary hover:underline">Все заказы</Link>
+            </CardHeader>
+            <CardContent>
+              {recentOrders.length === 0 ? (
+                <p className="text-gray-500 text-sm">Заказов пока нет</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {recentOrders.map((o) => (
+                        <tr key={o.id} className="border-b last:border-0">
+                          <td className="py-3 pr-3">
+                            <Link href={`/admin/orders/${o.id}`} className="font-medium text-primary hover:underline">{o.orderNumber}</Link>
+                            <p className="text-gray-500">{o.customerName}</p>
+                          </td>
+                          <td className="py-3 pr-3 font-medium whitespace-nowrap">{formatSum(Number(o.total))}</td>
+                          <td className="py-3 pr-3"><OrderStatus status={o.status} /></td>
+                          <td className="py-3 text-gray-500 whitespace-nowrap text-right">{formatDateTime(o.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-blue-600">8</p>
-            <p className="text-sm text-gray-500">Новых заказов</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-yellow-600">5</p>
-            <p className="text-sm text-gray-500">В обработке</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-green-600">11</p>
-            <p className="text-sm text-gray-500">Завершено сегодня</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-purple-600">890 000</p>
-            <p className="text-sm text-gray-500">Средний чек</p>
-          </CardContent>
-        </Card>
+        {seeStock && (
+          <Card className={seeOrders ? "" : "lg:col-span-3"}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+                Заканчиваются
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {lowStock.length === 0 ? (
+                <p className="text-sm text-gray-500">Все товары в достатке</p>
+              ) : (
+                <ul className="space-y-3">
+                  {lowStock.map((p) => {
+                    const free = p.stock - p.reserved
+                    return (
+                      <li key={p.id} className="flex items-center justify-between gap-3 text-sm">
+                        <div className="min-w-0">
+                          <Link href={`/admin/products/${p.id}`} className="font-medium hover:text-primary line-clamp-1">{p.name}</Link>
+                          <p className="text-gray-500">{p.sku}</p>
+                        </div>
+                        <span className={`whitespace-nowrap font-semibold ${free <= 0 ? "text-red-500" : "text-orange-500"}`}>
+                          {free} {p.unit}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {can(staff, "warehouse") && (
+                <Link href="/admin/warehouse?filter=low" className="block mt-4 text-sm text-primary hover:underline">Открыть склад</Link>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
