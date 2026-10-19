@@ -5,6 +5,7 @@ import { ChangeEvent, useEffect, useState } from "react"
 import { ArrowLeft, Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DesignLabel } from "@/components/DesignLabel"
 
 type DesignFile = {
   id: string
@@ -96,6 +97,13 @@ export default function DesignDetailPage({ params }: { params: Promise<{ code: s
         <h1 className="text-3xl font-bold">{item.title}</h1>
         <p className="text-gray-500">{item.series} · {item.designType} · V{item.version}</p>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Этикетка дизайна</CardTitle></CardHeader>
+        <CardContent>
+          <DesignLabel code={item.code} title={item.title} series={item.series} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Загрузить исходник</CardTitle></CardHeader>

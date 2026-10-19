@@ -1,9 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   TrendingUp,
-  TrendingDown,
   DollarSign,
   ShoppingCart,
   Users,
@@ -16,56 +15,110 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-const salesData = [
-  { month: "Янв", sales: 4500000, orders: 45 },
-  { month: "Фев", sales: 5200000, orders: 52 },
-  { month: "Мар", sales: 4800000, orders: 48 },
-  { month: "Апр", sales: 6100000, orders: 61 },
-  { month: "Май", sales: 5500000, orders: 55 },
-  { month: "Июн", sales: 7200000, orders: 72 },
-  { month: "Июл", sales: 6800000, orders: 68 },
-  { month: "Авг", sales: 7500000, orders: 75 },
-  { month: "Сен", sales: 8200000, orders: 82 },
-  { month: "Окт", sales: 7800000, orders: 78 },
-  { month: "Ноя", sales: 9100000, orders: 91 },
-  { month: "Дек", sales: 10500000, orders: 105 },
-]
+type Metrics = {
+  totalRevenue: number
+  revenueChange: number
+  totalOrders: number
+  ordersChange: number
+  avgOrderValue: number
+  avgOrderChange: number
+  newCustomers: number
+  customersChange: number
+}
 
-const topProducts = [
-  { name: "Термотрансфер Premium A4", sales: 1250, revenue: 18750000 },
-  { name: "Виниловая пленка глянцевая", sales: 890, revenue: 7565000 },
-  { name: "DTF пленка рулон 60см", sales: 520, revenue: 18200000 },
-  { name: "UV DTF стикеры набор", sales: 480, revenue: 6000000 },
-  { name: "Порошок DTF белый 1кг", sales: 350, revenue: 5250000 },
-]
+type SalesData = {
+  month: string
+  sales: number
+  orders: number
+}
 
-const topCustomers = [
-  { name: "ИП Алиев А.А.", orders: 45, total: 12500000 },
-  { name: "ООО \"Принт Мастер\"", orders: 38, total: 9800000 },
-  { name: "Рекламное агентство \"Брэнд\"", orders: 32, total: 8500000 },
-  { name: "ИП Каримов Б.Б.", orders: 28, total: 7200000 },
-  { name: "Типография \"Полиграф\"", orders: 25, total: 6800000 },
-]
+type TopProduct = {
+  name: string
+  sales: number
+  revenue: number
+}
 
-const categoryStats = [
-  { name: "Термотрансферы", percentage: 35, color: "bg-primary" },
-  { name: "Виниловые наклейки", percentage: 25, color: "bg-blue-500" },
-  { name: "DTF печать", percentage: 20, color: "bg-purple-500" },
-  { name: "UV DTF", percentage: 12, color: "bg-orange-500" },
-  { name: "Другое", percentage: 8, color: "bg-gray-400" },
-]
+type TopCustomer = {
+  name: string
+  orders: number
+  total: number
+}
+
+type CategoryStat = {
+  name: string
+  percentage: number
+  color: string
+}
+
+type QuickStats = {
+  completionRate: number
+  avgDeliveryDays: number
+  avgRating: number
+  repeatPurchaseRate: number
+}
+
+type AnalyticsData = {
+  metrics: Metrics
+  salesData: SalesData[]
+  topProducts: TopProduct[]
+  topCustomers: TopCustomer[]
+  categoryStats: CategoryStat[]
+  quickStats: QuickStats
+}
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("ru-RU").format(price) + " сум"
 }
 
 export default function AnalyticsPage() {
+  const [data, setData] = useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState("month")
 
-  const totalRevenue = salesData.reduce((acc, d) => acc + d.sales, 0)
-  const totalOrders = salesData.reduce((acc, d) => acc + d.orders, 0)
-  const avgOrderValue = Math.round(totalRevenue / totalOrders)
-  const maxSales = Math.max(...salesData.map((d) => d.sales))
+  useEffect(() => {
+    loadData()
+  }, [period])
+
+  async function loadData() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/admin/analytics?period=${period}`)
+      if (res.ok) {
+        setData(await res.json())
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const maxSales = data?.salesData ? Math.max(...data.salesData.map((d) => d.sales), 1) : 1
+
+  function ChangeIndicator({ value }: { value: number }) {
+    if (value > 0) {
+      return (
+        <div className="flex items-center gap-1 text-green-600">
+          <ArrowUpRight className="h-4 w-4" />
+          <span className="text-sm">+{value}%</span>
+        </div>
+      )
+    } else if (value < 0) {
+      return (
+        <div className="flex items-center gap-1 text-red-600">
+          <ArrowDownRight className="h-4 w-4" />
+          <span className="text-sm">{value}%</span>
+        </div>
+      )
+    }
+    return <span className="text-sm text-gray-400">0%</span>
+  }
+
+  if (loading) {
+    return <div className="text-gray-500">Загрузка...</div>
+  }
+
+  if (!data) {
+    return <div className="text-gray-500">Ошибка загрузки данных</div>
+  }
 
   return (
     <div className="space-y-6">
@@ -87,10 +140,6 @@ export default function AnalyticsPage() {
             <option value="year">Год</option>
           </select>
           <Button variant="outline">
-            <Calendar className="h-4 w-4 mr-2" />
-            Выбрать даты
-          </Button>
-          <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Экспорт
           </Button>
@@ -104,10 +153,9 @@ export default function AnalyticsPage() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm text-gray-500">Общая выручка</p>
-                <p className="text-2xl font-bold mt-1">{formatPrice(totalRevenue)}</p>
-                <div className="flex items-center gap-1 mt-2 text-green-600">
-                  <ArrowUpRight className="h-4 w-4" />
-                  <span className="text-sm">+12.5%</span>
+                <p className="text-2xl font-bold mt-1">{formatPrice(data.metrics.totalRevenue)}</p>
+                <div className="mt-2">
+                  <ChangeIndicator value={data.metrics.revenueChange} />
                 </div>
               </div>
               <div className="p-3 bg-primary/10 rounded-lg">
@@ -122,10 +170,9 @@ export default function AnalyticsPage() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm text-gray-500">Заказов</p>
-                <p className="text-2xl font-bold mt-1">{totalOrders}</p>
-                <div className="flex items-center gap-1 mt-2 text-green-600">
-                  <ArrowUpRight className="h-4 w-4" />
-                  <span className="text-sm">+8.3%</span>
+                <p className="text-2xl font-bold mt-1">{data.metrics.totalOrders}</p>
+                <div className="mt-2">
+                  <ChangeIndicator value={data.metrics.ordersChange} />
                 </div>
               </div>
               <div className="p-3 bg-blue-100 rounded-lg">
@@ -140,10 +187,9 @@ export default function AnalyticsPage() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm text-gray-500">Средний чек</p>
-                <p className="text-2xl font-bold mt-1">{formatPrice(avgOrderValue)}</p>
-                <div className="flex items-center gap-1 mt-2 text-green-600">
-                  <ArrowUpRight className="h-4 w-4" />
-                  <span className="text-sm">+3.8%</span>
+                <p className="text-2xl font-bold mt-1">{formatPrice(data.metrics.avgOrderValue)}</p>
+                <div className="mt-2">
+                  <ChangeIndicator value={data.metrics.avgOrderChange} />
                 </div>
               </div>
               <div className="p-3 bg-purple-100 rounded-lg">
@@ -158,10 +204,9 @@ export default function AnalyticsPage() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm text-gray-500">Новых клиентов</p>
-                <p className="text-2xl font-bold mt-1">156</p>
-                <div className="flex items-center gap-1 mt-2 text-red-600">
-                  <ArrowDownRight className="h-4 w-4" />
-                  <span className="text-sm">-2.1%</span>
+                <p className="text-2xl font-bold mt-1">{data.metrics.newCustomers}</p>
+                <div className="mt-2">
+                  <ChangeIndicator value={data.metrics.customersChange} />
                 </div>
               </div>
               <div className="p-3 bg-orange-100 rounded-lg">
@@ -180,18 +225,24 @@ export default function AnalyticsPage() {
             <CardTitle>Динамика продаж</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-end gap-2">
-              {salesData.map((data, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                  <div
-                    className="w-full bg-primary rounded-t transition-all hover:bg-primary/80"
-                    style={{ height: `${(data.sales / maxSales) * 250}px` }}
-                    title={formatPrice(data.sales)}
-                  />
-                  <span className="text-xs text-gray-500">{data.month}</span>
-                </div>
-              ))}
-            </div>
+            {data.salesData.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-gray-500">
+                Нет данных
+              </div>
+            ) : (
+              <div className="h-[300px] flex items-end gap-2">
+                {data.salesData.map((item, index) => (
+                  <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                    <div
+                      className="w-full bg-primary rounded-t transition-all hover:bg-primary/80"
+                      style={{ height: `${(item.sales / maxSales) * 250}px`, minHeight: item.sales > 0 ? "4px" : "0" }}
+                      title={`${formatPrice(item.sales)} (${item.orders} заказов)`}
+                    />
+                    <span className="text-xs text-gray-500">{item.month}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -201,22 +252,26 @@ export default function AnalyticsPage() {
             <CardTitle>По категориям</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {categoryStats.map((cat, index) => (
-                <div key={index}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>{cat.name}</span>
-                    <span className="font-medium">{cat.percentage}%</span>
+            {data.categoryStats.length === 0 ? (
+              <div className="py-8 text-center text-gray-500">Нет данных</div>
+            ) : (
+              <div className="space-y-4">
+                {data.categoryStats.map((cat, index) => (
+                  <div key={index}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>{cat.name}</span>
+                      <span className="font-medium">{cat.percentage}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${cat.color} rounded-full`}
+                        style={{ width: `${cat.percentage}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${cat.color} rounded-full`}
-                      style={{ width: `${cat.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -232,22 +287,26 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {topProducts.map((product, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-sm">
-                    {index + 1}
+            {data.topProducts.length === 0 ? (
+              <div className="py-8 text-center text-gray-500">Нет данных</div>
+            ) : (
+              <div className="space-y-4">
+                {data.topProducts.map((product, index) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-sm">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{product.name}</p>
+                      <p className="text-sm text-gray-500">{product.sales} продаж</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">{formatPrice(product.revenue)}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{product.name}</p>
-                    <p className="text-sm text-gray-500">{product.sales} продаж</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatPrice(product.revenue)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -260,22 +319,26 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {topCustomers.map((customer, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-sm text-primary">
-                    {index + 1}
+            {data.topCustomers.length === 0 ? (
+              <div className="py-8 text-center text-gray-500">Нет данных</div>
+            ) : (
+              <div className="space-y-4">
+                {data.topCustomers.map((customer, index) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-sm text-primary">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{customer.name}</p>
+                      <p className="text-sm text-gray-500">{customer.orders} заказов</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">{formatPrice(customer.total)}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{customer.name}</p>
-                    <p className="text-sm text-gray-500">{customer.orders} заказов</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatPrice(customer.total)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -284,25 +347,25 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-primary">95%</p>
+            <p className="text-3xl font-bold text-primary">{data.quickStats.completionRate}%</p>
             <p className="text-sm text-gray-500 mt-1">Выполнение заказов</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-blue-600">2.3 дня</p>
+            <p className="text-3xl font-bold text-blue-600">{data.quickStats.avgDeliveryDays} дня</p>
             <p className="text-sm text-gray-500 mt-1">Среднее время доставки</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-green-600">4.8</p>
+            <p className="text-3xl font-bold text-green-600">{data.quickStats.avgRating}</p>
             <p className="text-sm text-gray-500 mt-1">Средний рейтинг</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-purple-600">68%</p>
+            <p className="text-3xl font-bold text-purple-600">{data.quickStats.repeatPurchaseRate}%</p>
             <p className="text-sm text-gray-500 mt-1">Повторные покупки</p>
           </CardContent>
         </Card>

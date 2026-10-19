@@ -123,3 +123,33 @@ export async function downloadDesignFile(fileId: string) {
   url.searchParams.set("supportsAllDrives", "true")
   return fetch(url, { headers: await authHeaders(), cache: "no-store" })
 }
+
+export async function ensureImagesFolder() {
+  return ensureFolder("_images", getDriveId())
+}
+
+export async function uploadImage(file: File, filename: string) {
+  const folderId = await ensureImagesFolder()
+  const result = await uploadDesignFile(file, folderId, filename)
+
+  // Make file publicly accessible
+  const permUrl = new URL(`${FILES_URL}/${result.id}/permissions`)
+  permUrl.searchParams.set("supportsAllDrives", "true")
+  await fetch(permUrl, {
+    method: "POST",
+    headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+    body: JSON.stringify({ role: "reader", type: "anyone" }),
+  })
+
+  return {
+    id: result.id,
+    url: `https://drive.google.com/uc?id=${result.id}`,
+    directUrl: `https://lh3.googleusercontent.com/d/${result.id}`,
+  }
+}
+
+export async function deleteFile(fileId: string) {
+  const url = new URL(`${FILES_URL}/${encodeURIComponent(fileId)}`)
+  url.searchParams.set("supportsAllDrives", "true")
+  await fetch(url, { method: "DELETE", headers: await authHeaders() })
+}

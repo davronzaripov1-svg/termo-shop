@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Save,
   Plus,
@@ -9,19 +9,14 @@ import {
   Image as ImageIcon,
   Eye,
   EyeOff,
-  ChevronDown,
-  ChevronUp,
-  Palette,
-  Type,
-  Link as LinkIcon,
   Sparkles,
   Upload,
   RotateCcw,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 
 type Section = {
@@ -31,10 +26,36 @@ type Section = {
   isExpanded: boolean
 }
 
+type HeroCard = {
+  icon: string
+  image?: string
+  title: string
+  subtitle: string
+  price?: string
+}
+
+type CategoryItem = {
+  name: string
+  slug: string
+  count: number
+  color: string
+  icon: string
+  image?: string
+  size: string
+}
+
+type FeatureItem = {
+  icon: string
+  image?: string
+  title: string
+  description: string
+}
+
 export default function HomepageManagementPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("hero")
+  const [uploading, setUploading] = useState<string | null>(null)
 
   const [sections, setSections] = useState<Section[]>([
     { id: "hero", name: "Hero секция", isVisible: true, isExpanded: true },
@@ -63,10 +84,10 @@ export default function HomepageManagementPage() {
     ],
     floatingBadge: "Скидки до 30%",
     cards: [
-      { icon: "🔥", title: "Термотрансферы", subtitle: "Премиум качество для профессионалов", price: "от 15 000 сум" },
-      { icon: "✨", title: "Винил", subtitle: "200+ видов" },
-      { icon: "🎨", title: "DTF печать", subtitle: "Всё для печати" },
-    ],
+      { icon: "🔥", image: "", title: "Термотрансферы", subtitle: "Премиум качество для профессионалов", price: "от 15 000 сум" },
+      { icon: "✨", image: "", title: "Винил", subtitle: "200+ видов" },
+      { icon: "🎨", image: "", title: "DTF печать", subtitle: "Всё для печати" },
+    ] as HeroCard[],
   })
 
   // Marquee State
@@ -85,13 +106,13 @@ export default function HomepageManagementPage() {
     title: "Категории товаров",
     badge: "Каталог",
     items: [
-      { name: "Термотрансферы", slug: "termotransfers", count: 150, color: "from-orange-500 to-red-500", icon: "🔥", size: "large" },
-      { name: "Виниловые наклейки", slug: "vinyl", count: 200, color: "from-purple-500 to-pink-500", icon: "✨", size: "medium" },
-      { name: "DTF печать", slug: "dtf", count: 180, color: "from-blue-500 to-cyan-500", icon: "🎨", size: "medium" },
-      { name: "UV DTF", slug: "uv-dtf", count: 120, color: "from-emerald-500 to-teal-500", icon: "💎", size: "small" },
-      { name: "Расходники", slug: "materials", count: 85, color: "from-amber-500 to-orange-500", icon: "📦", size: "small" },
-      { name: "Оборудование", slug: "equipment", count: 45, color: "from-slate-600 to-slate-800", icon: "⚙️", size: "small" },
-    ],
+      { name: "Термотрансферы", slug: "termotransfers", count: 150, color: "from-orange-500 to-red-500", icon: "🔥", image: "", size: "large" },
+      { name: "Виниловые наклейки", slug: "vinyl", count: 200, color: "from-purple-500 to-pink-500", icon: "✨", image: "", size: "medium" },
+      { name: "DTF печать", slug: "dtf", count: 180, color: "from-blue-500 to-cyan-500", icon: "🎨", image: "", size: "medium" },
+      { name: "UV DTF", slug: "uv-dtf", count: 120, color: "from-emerald-500 to-teal-500", icon: "💎", image: "", size: "small" },
+      { name: "Расходники", slug: "materials", count: 85, color: "from-amber-500 to-orange-500", icon: "📦", image: "", size: "small" },
+      { name: "Оборудование", slug: "equipment", count: 45, color: "from-slate-600 to-slate-800", icon: "⚙️", image: "", size: "small" },
+    ] as CategoryItem[],
   })
 
   // Featured Products State
@@ -99,7 +120,7 @@ export default function HomepageManagementPage() {
     title: "Популярные товары",
     badge: "Топ продаж",
     showCount: 6,
-    autoSelect: true, // Automatically select top products or manual
+    autoSelect: true,
     manualProducts: ["1", "2", "3", "4", "5", "6"],
   })
 
@@ -108,11 +129,11 @@ export default function HomepageManagementPage() {
     title: "Преимущества работы с нами",
     badge: "Почему мы",
     items: [
-      { icon: "truck", title: "Быстрая доставка", description: "По всему Узбекистану за 1-3 дня" },
-      { icon: "shield", title: "Гарантия качества", description: "100% оригинальная продукция" },
-      { icon: "clock", title: "Поддержка 24/7", description: "Всегда на связи в Telegram" },
-      { icon: "package", title: "Большой выбор", description: "Более 500 товаров в наличии" },
-    ],
+      { icon: "truck", image: "", title: "Быстрая доставка", description: "По всему Узбекистану за 1-3 дня" },
+      { icon: "shield", image: "", title: "Гарантия качества", description: "100% оригинальная продукция" },
+      { icon: "clock", image: "", title: "Поддержка 24/7", description: "Всегда на связи в Telegram" },
+      { icon: "package", image: "", title: "Большой выбор", description: "Более 500 товаров в наличии" },
+    ] as FeatureItem[],
   })
 
   // CTA State
@@ -186,16 +207,99 @@ export default function HomepageManagementPage() {
     }
   }
 
-  const toggleSection = (id: string) => {
-    setSections(sections.map(s =>
-      s.id === id ? { ...s, isExpanded: !s.isExpanded } : s
-    ))
-  }
-
   const toggleVisibility = (id: string) => {
     setSections(sections.map(s =>
       s.id === id ? { ...s, isVisible: !s.isVisible } : s
     ))
+  }
+
+  // Image upload handler
+  async function handleImageUpload(
+    file: File,
+    uploadKey: string,
+    onSuccess: (url: string) => void
+  ) {
+    setUploading(uploadKey)
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch("/api/admin/upload", { method: "POST", body: form })
+      if (res.ok) {
+        const data = await res.json()
+        onSuccess(data.url)
+        toast.success("Изображение загружено")
+      } else {
+        toast.error("Ошибка загрузки")
+      }
+    } catch (error) {
+      toast.error("Ошибка загрузки")
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  // Image upload component
+  function ImageUploader({
+    currentImage,
+    currentIcon,
+    uploadKey,
+    onImageChange,
+    onIconChange,
+    onRemoveImage,
+  }: {
+    currentImage?: string
+    currentIcon: string
+    uploadKey: string
+    onImageChange: (url: string) => void
+    onIconChange: (icon: string) => void
+    onRemoveImage: () => void
+  }) {
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    return (
+      <div className="flex items-center gap-3">
+        {currentImage ? (
+          <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
+            <img src={currentImage} alt="" className="w-full h-full object-cover" />
+            <button
+              onClick={onRemoveImage}
+              className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <Input
+            value={currentIcon}
+            onChange={(e) => onIconChange(e.target.value)}
+            className="w-16 text-center text-2xl"
+            placeholder="🔥"
+          />
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) {
+              handleImageUpload(file, uploadKey, onImageChange)
+            }
+            e.target.value = ""
+          }}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading === uploadKey}
+        >
+          <Upload className="h-4 w-4 mr-1" />
+          {uploading === uploadKey ? "..." : "Фото"}
+        </Button>
+      </div>
+    )
   }
 
   const tabs = [
@@ -227,13 +331,9 @@ export default function HomepageManagementPage() {
           <p className="text-gray-500">Настройте содержимое и внешний вид главной страницы</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => window.open("/", "_blank")}>
             <Eye className="h-4 w-4 mr-2" />
             Предпросмотр
-          </Button>
-          <Button variant="outline">
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Сбросить
           </Button>
           <Button
             className="bg-primary text-black hover:bg-primary/90"
@@ -253,7 +353,7 @@ export default function HomepageManagementPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {sections.map((section, index) => (
+            {sections.map((section) => (
               <div
                 key={section.id}
                 className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
@@ -424,21 +524,31 @@ export default function HomepageManagementPage() {
                 </div>
               </div>
 
-              {/* Floating Cards */}
+              {/* Floating Cards with Image Upload */}
               <div>
-                <label className="block text-sm font-medium mb-2">Плавающие карточки</label>
+                <label className="block text-sm font-medium mb-2">Плавающие карточки (эмодзи или фото)</label>
                 <div className="space-y-4">
                   {heroData.cards.map((card, index) => (
-                    <div key={index} className="flex gap-4 p-4 bg-gray-50 rounded-lg">
-                      <Input
-                        value={card.icon}
-                        onChange={(e) => {
+                    <div key={index} className="flex gap-4 p-4 bg-gray-50 rounded-lg items-start">
+                      <ImageUploader
+                        currentImage={card.image}
+                        currentIcon={card.icon}
+                        uploadKey={`hero-card-${index}`}
+                        onImageChange={(url) => {
                           const newCards = [...heroData.cards]
-                          newCards[index] = { ...card, icon: e.target.value }
+                          newCards[index] = { ...card, image: url }
                           setHeroData({ ...heroData, cards: newCards })
                         }}
-                        className="w-16 text-center text-2xl"
-                        placeholder="🔥"
+                        onIconChange={(icon) => {
+                          const newCards = [...heroData.cards]
+                          newCards[index] = { ...card, icon }
+                          setHeroData({ ...heroData, cards: newCards })
+                        }}
+                        onRemoveImage={() => {
+                          const newCards = [...heroData.cards]
+                          newCards[index] = { ...card, image: "" }
+                          setHeroData({ ...heroData, cards: newCards })
+                        }}
                       />
                       <div className="flex-1 space-y-2">
                         <Input
@@ -460,7 +570,7 @@ export default function HomepageManagementPage() {
                           placeholder="Подзаголовок"
                         />
                       </div>
-                      {card.price && (
+                      {card.price !== undefined && (
                         <Input
                           value={card.price}
                           onChange={(e) => {
@@ -506,16 +616,6 @@ export default function HomepageManagementPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Скорость (секунд)</label>
-              <Input
-                type="number"
-                value={marqueeData.speed}
-                onChange={(e) => setMarqueeData({ ...marqueeData, speed: parseInt(e.target.value) })}
-                className="w-32"
-              />
-            </div>
-
-            <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium">Элементы</label>
                 <Button
@@ -542,12 +642,11 @@ export default function HomepageManagementPage() {
                       }}
                       className="px-3 py-2 border rounded-lg"
                     >
-                      <option value="zap">⚡ Молния</option>
-                      <option value="star">⭐ Звезда</option>
-                      <option value="package">📦 Посылка</option>
-                      <option value="truck">🚚 Доставка</option>
-                      <option value="shield">🛡️ Щит</option>
-                      <option value="heart">❤️ Сердце</option>
+                      <option value="zap">Молния</option>
+                      <option value="star">Звезда</option>
+                      <option value="package">Посылка</option>
+                      <option value="truck">Доставка</option>
+                      <option value="shield">Щит</option>
                     </select>
                     <Input
                       value={item.text}
@@ -578,7 +677,7 @@ export default function HomepageManagementPage() {
         </Card>
       )}
 
-      {/* Categories Editor */}
+      {/* Categories Editor with Image Upload */}
       {activeTab === "categories" && (
         <Card>
           <CardHeader>
@@ -604,8 +703,23 @@ export default function HomepageManagementPage() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Категории</label>
-                <Button variant="outline" size="sm">
+                <label className="block text-sm font-medium">Категории (эмодзи или фото)</label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCategoriesData({
+                    ...categoriesData,
+                    items: [...categoriesData.items, {
+                      name: "Новая категория",
+                      slug: "new",
+                      count: 0,
+                      color: "from-gray-500 to-gray-600",
+                      icon: "📦",
+                      image: "",
+                      size: "small"
+                    }]
+                  })}
+                >
                   <Plus className="h-4 w-4 mr-1" />
                   Добавить
                 </Button>
@@ -614,14 +728,25 @@ export default function HomepageManagementPage() {
                 {categoriesData.items.map((cat, index) => (
                   <div key={index} className="flex gap-3 p-4 bg-gray-50 rounded-lg items-center">
                     <GripVertical className="h-5 w-5 text-gray-400 cursor-grab" />
-                    <Input
-                      value={cat.icon}
-                      onChange={(e) => {
+                    <ImageUploader
+                      currentImage={cat.image}
+                      currentIcon={cat.icon}
+                      uploadKey={`cat-${index}`}
+                      onImageChange={(url) => {
                         const newItems = [...categoriesData.items]
-                        newItems[index] = { ...cat, icon: e.target.value }
+                        newItems[index] = { ...cat, image: url }
                         setCategoriesData({ ...categoriesData, items: newItems })
                       }}
-                      className="w-16 text-center text-2xl"
+                      onIconChange={(icon) => {
+                        const newItems = [...categoriesData.items]
+                        newItems[index] = { ...cat, icon }
+                        setCategoriesData({ ...categoriesData, items: newItems })
+                      }}
+                      onRemoveImage={() => {
+                        const newItems = [...categoriesData.items]
+                        newItems[index] = { ...cat, image: "" }
+                        setCategoriesData({ ...categoriesData, items: newItems })
+                      }}
                     />
                     <Input
                       value={cat.name}
@@ -640,7 +765,7 @@ export default function HomepageManagementPage() {
                         newItems[index] = { ...cat, slug: e.target.value }
                         setCategoriesData({ ...categoriesData, items: newItems })
                       }}
-                      className="w-40"
+                      className="w-32"
                       placeholder="slug"
                     />
                     <select
@@ -663,10 +788,19 @@ export default function HomepageManagementPage() {
                         newItems[index] = { ...cat, color: e.target.value }
                         setCategoriesData({ ...categoriesData, items: newItems })
                       }}
-                      className="w-56"
+                      className="w-48"
                       placeholder="from-orange-500 to-red-500"
                     />
-                    <Button variant="ghost" size="icon">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setCategoriesData({
+                          ...categoriesData,
+                          items: categoriesData.items.filter((_, i) => i !== index)
+                        })
+                      }}
+                    >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
@@ -734,23 +868,11 @@ export default function HomepageManagementPage() {
                 </label>
               </div>
             </div>
-
-            {!productsData.autoSelect && (
-              <div>
-                <label className="block text-sm font-medium mb-2">Выберите товары</label>
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  <p className="text-gray-500 text-sm">
-                    Здесь будет список товаров для выбора. Перетащите товары для изменения порядка.
-                  </p>
-                  {/* Product selector would go here */}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Features Editor */}
+      {/* Features Editor with Image Upload */}
       {activeTab === "features" && (
         <Card>
           <CardHeader>
@@ -776,13 +898,13 @@ export default function HomepageManagementPage() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Элементы</label>
+                <label className="block text-sm font-medium">Элементы (иконка или фото)</label>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setFeaturesData({
                     ...featuresData,
-                    items: [...featuresData.items, { icon: "star", title: "Новое преимущество", description: "Описание" }]
+                    items: [...featuresData.items, { icon: "star", image: "", title: "Новое преимущество", description: "Описание" }]
                   })}
                 >
                   <Plus className="h-4 w-4 mr-1" />
@@ -791,25 +913,68 @@ export default function HomepageManagementPage() {
               </div>
               <div className="space-y-3">
                 {featuresData.items.map((item, index) => (
-                  <div key={index} className="flex gap-3 p-4 bg-gray-50 rounded-lg">
+                  <div key={index} className="flex gap-3 p-4 bg-gray-50 rounded-lg items-start">
                     <GripVertical className="h-5 w-5 text-gray-400 cursor-grab mt-2" />
-                    <select
-                      value={item.icon}
-                      onChange={(e) => {
-                        const newItems = [...featuresData.items]
-                        newItems[index] = { ...item, icon: e.target.value }
-                        setFeaturesData({ ...featuresData, items: newItems })
-                      }}
-                      className="px-3 py-2 border rounded-lg"
-                    >
-                      <option value="truck">🚚 Доставка</option>
-                      <option value="shield">🛡️ Гарантия</option>
-                      <option value="clock">🕐 Время</option>
-                      <option value="package">📦 Посылка</option>
-                      <option value="star">⭐ Звезда</option>
-                      <option value="heart">❤️ Сердце</option>
-                      <option value="check">✅ Галочка</option>
-                    </select>
+                    <div className="flex flex-col gap-2">
+                      {item.image ? (
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
+                          <img src={item.image} alt="" className="w-full h-full object-cover" />
+                          <button
+                            onClick={() => {
+                              const newItems = [...featuresData.items]
+                              newItems[index] = { ...item, image: "" }
+                              setFeaturesData({ ...featuresData, items: newItems })
+                            }}
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          value={item.icon}
+                          onChange={(e) => {
+                            const newItems = [...featuresData.items]
+                            newItems[index] = { ...item, icon: e.target.value }
+                            setFeaturesData({ ...featuresData, items: newItems })
+                          }}
+                          className="px-3 py-2 border rounded-lg"
+                        >
+                          <option value="truck">Доставка</option>
+                          <option value="shield">Гарантия</option>
+                          <option value="clock">Время</option>
+                          <option value="package">Посылка</option>
+                          <option value="star">Звезда</option>
+                          <option value="check">Галочка</option>
+                        </select>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        id={`feature-img-${index}`}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            handleImageUpload(file, `feature-${index}`, (url) => {
+                              const newItems = [...featuresData.items]
+                              newItems[index] = { ...item, image: url }
+                              setFeaturesData({ ...featuresData, items: newItems })
+                            })
+                          }
+                          e.target.value = ""
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById(`feature-img-${index}`)?.click()}
+                        disabled={uploading === `feature-${index}`}
+                      >
+                        <Upload className="h-3 w-3 mr-1" />
+                        {uploading === `feature-${index}` ? "..." : "Фото"}
+                      </Button>
+                    </div>
                     <div className="flex-1 space-y-2">
                       <Input
                         value={item.title}

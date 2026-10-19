@@ -1,89 +1,49 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Eye, Printer, FileText } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Search, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
-const orders = [
-  {
-    id: "ORDER-2026-000024",
-    customer: "Иван Петров",
-    phone: "+998 90 123 45 67",
-    email: "ivan@example.com",
-    items: 3,
-    total: 4500000,
-    paymentStatus: "PENDING",
-    status: "NEW",
-    date: "10 сен 2026, 14:30",
-    manager: null,
-  },
-  {
-    id: "ORDER-2026-000023",
-    customer: "Мария Сидорова",
-    phone: "+998 91 234 56 78",
-    email: "maria@example.com",
-    items: 5,
-    total: 1200000,
-    paymentStatus: "PAID",
-    status: "PROCESSING",
-    date: "10 сен 2026, 12:15",
-    manager: "Алексей",
-  },
-  {
-    id: "ORDER-2026-000022",
-    customer: "Алексей Козлов",
-    phone: "+998 93 345 67 89",
-    email: null,
-    items: 2,
-    total: 890000,
-    paymentStatus: "PAID",
-    status: "PICKING",
-    date: "10 сен 2026, 10:00",
-    manager: "Мария",
-  },
-  {
-    id: "ORDER-2026-000021",
-    customer: "Елена Новикова",
-    phone: "+998 94 456 78 90",
-    email: "elena@example.com",
-    items: 8,
-    total: 2100000,
-    paymentStatus: "PAID",
-    status: "READY",
-    date: "09 сен 2026, 18:45",
-    manager: "Алексей",
-  },
-  {
-    id: "ORDER-2026-000020",
-    customer: "Дмитрий Волков",
-    phone: "+998 95 567 89 01",
-    email: null,
-    items: 1,
-    total: 650000,
-    paymentStatus: "PAID",
-    status: "COMPLETED",
-    date: "09 сен 2026, 15:20",
-    manager: "Мария",
-  },
-  {
-    id: "ORDER-2026-000019",
-    customer: "Ольга Смирнова",
-    phone: "+998 97 678 90 12",
-    email: "olga@example.com",
-    items: 4,
-    total: 980000,
-    paymentStatus: "REFUNDED",
-    status: "CANCELLED",
-    date: "08 сен 2026, 11:30",
-    manager: "Алексей",
-  },
-]
+type Order = {
+  id: string
+  orderNumber: string
+  customerName: string
+  customerPhone: string
+  total: number
+  status: string
+  paymentStatus: string
+  createdAt: string
+  _count?: { items: number }
+}
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("ru-RU").format(price) + " сум"
+}
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+const statusLabels: Record<string, string> = {
+  NEW: "Новый",
+  CONFIRMED: "Подтверждён",
+  PROCESSING: "В обработке",
+  PICKING: "Сборка",
+  READY: "Готов",
+  SHIPPING: "Доставка",
+  DELIVERED: "Доставлен",
+  COMPLETED: "Завершён",
+  CANCELLED: "Отменён",
 }
 
 const statusColors: Record<string, string> = {
@@ -91,34 +51,14 @@ const statusColors: Record<string, string> = {
   CONFIRMED: "bg-indigo-500",
   PROCESSING: "bg-yellow-500",
   PICKING: "bg-orange-500",
-  READY: "bg-teal-500",
+  READY: "bg-cyan-500",
   SHIPPING: "bg-purple-500",
   DELIVERED: "bg-green-500",
-  COMPLETED: "bg-green-700",
+  COMPLETED: "bg-green-600",
   CANCELLED: "bg-red-500",
 }
 
-const statusLabels: Record<string, string> = {
-  NEW: "Новый",
-  CONFIRMED: "Подтвержден",
-  PROCESSING: "В обработке",
-  PICKING: "Комплектуется",
-  READY: "Готов",
-  SHIPPING: "Доставка",
-  DELIVERED: "Доставлен",
-  COMPLETED: "Завершен",
-  CANCELLED: "Отменен",
-}
-
-const paymentStatusColors: Record<string, string> = {
-  PENDING: "bg-yellow-500",
-  PAID: "bg-green-500",
-  PARTIAL: "bg-blue-500",
-  REFUNDED: "bg-gray-500",
-  FAILED: "bg-red-500",
-}
-
-const paymentStatusLabels: Record<string, string> = {
+const paymentLabels: Record<string, string> = {
   PENDING: "Ожидает",
   PAID: "Оплачен",
   PARTIAL: "Частично",
@@ -126,60 +66,86 @@ const paymentStatusLabels: Record<string, string> = {
   FAILED: "Ошибка",
 }
 
+const paymentColors: Record<string, string> = {
+  PENDING: "bg-yellow-500",
+  PAID: "bg-green-500",
+  PARTIAL: "bg-orange-500",
+  REFUNDED: "bg-gray-500",
+  FAILED: "bg-red-500",
+}
+
 export default function OrdersPage() {
+  const searchParams = useSearchParams()
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [newStatus, setNewStatus] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    loadOrders()
+  }, [statusFilter])
+
+  async function loadOrders() {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (statusFilter) params.set("status", statusFilter)
+      if (searchQuery) params.set("q", searchQuery)
+      const res = await fetch(`/api/admin/orders?${params}`)
+      if (res.ok) {
+        setOrders(await res.json())
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function updateStatus() {
+    if (!selectedOrder || !newStatus) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrder.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        setSelectedOrder(null)
+        loadOrders()
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const filteredOrders = orders.filter((o) => {
-    const matchesSearch =
-      o.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.phone.includes(searchQuery)
-    const matchesStatus = !statusFilter || o.status === statusFilter
-    return matchesSearch && matchesStatus
+    if (!searchQuery) return true
+    return (
+      o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.customerPhone.includes(searchQuery)
+    )
   })
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold">Заказы</h1>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <FileText className="h-4 w-4 mr-2" />
-            Экспорт
-          </Button>
-        </div>
-      </div>
+      <h1 className="text-2xl font-bold">Заказы</h1>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          { label: "Новые", count: 8, color: "text-blue-600" },
-          { label: "В обработке", count: 5, color: "text-yellow-600" },
-          { label: "Комплектуются", count: 3, color: "text-orange-600" },
-          { label: "Готовы", count: 2, color: "text-teal-600" },
-          { label: "Завершены", count: 156, color: "text-green-600" },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="p-4 text-center">
-              <p className={`text-2xl font-bold ${stat.color}`}>{stat.count}</p>
-              <p className="text-sm text-gray-500">{stat.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Filters */}
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Поиск по номеру, клиенту или телефону..."
+                placeholder="Поиск по номеру, имени, телефону..."
                 className="pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && loadOrders()}
               />
             </div>
             <select
@@ -188,93 +154,119 @@ export default function OrdersPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="">Все статусы</option>
-              <option value="NEW">Новые</option>
-              <option value="PROCESSING">В обработке</option>
-              <option value="PICKING">Комплектуются</option>
-              <option value="READY">Готовы</option>
-              <option value="COMPLETED">Завершены</option>
-              <option value="CANCELLED">Отменены</option>
+              {Object.entries(statusLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
             </select>
-            <Input type="date" className="w-auto" />
-            <Input type="date" className="w-auto" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Orders Table */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-sm text-gray-500 border-b bg-gray-50">
-                  <th className="p-4">Заказ</th>
-                  <th className="p-4">Клиент</th>
-                  <th className="p-4">Товаров</th>
-                  <th className="p-4">Сумма</th>
-                  <th className="p-4">Оплата</th>
-                  <th className="p-4">Статус</th>
-                  <th className="p-4">Менеджер</th>
-                  <th className="p-4">Дата</th>
-                  <th className="p-4">Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((order) => (
-                  <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="p-4">
-                      <span className="font-medium text-primary">{order.id}</span>
-                    </td>
-                    <td className="p-4">
-                      <div>
-                        <p className="font-medium">{order.customer}</p>
-                        <p className="text-sm text-gray-500">{order.phone}</p>
-                      </div>
-                    </td>
-                    <td className="p-4">{order.items}</td>
-                    <td className="p-4 font-medium">{formatPrice(order.total)}</td>
-                    <td className="p-4">
-                      <Badge className={paymentStatusColors[order.paymentStatus]}>
-                        {paymentStatusLabels[order.paymentStatus]}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      <Badge className={statusColors[order.status]}>
-                        {statusLabels[order.status]}
-                      </Badge>
-                    </td>
-                    <td className="p-4 text-gray-500">{order.manager || "—"}</td>
-                    <td className="p-4 text-sm text-gray-500">{order.date}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" title="Просмотр">
+          {loading ? (
+            <div className="p-8 text-center text-gray-500">Загрузка...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-sm text-gray-500 border-b bg-gray-50">
+                    <th className="p-4">Заказ</th>
+                    <th className="p-4">Клиент</th>
+                    <th className="p-4">Сумма</th>
+                    <th className="p-4">Оплата</th>
+                    <th className="p-4">Статус</th>
+                    <th className="p-4">Дата</th>
+                    <th className="p-4"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-gray-500">
+                        Заказов нет
+                      </td>
+                    </tr>
+                  ) : filteredOrders.map((order) => (
+                    <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="p-4">
+                        <p className="font-medium">{order.orderNumber}</p>
+                        <p className="text-sm text-gray-500">{order._count?.items || 0} позиций</p>
+                      </td>
+                      <td className="p-4">
+                        <p className="font-medium">{order.customerName}</p>
+                        <p className="text-sm text-gray-500">{order.customerPhone}</p>
+                      </td>
+                      <td className="p-4 font-medium">{formatPrice(Number(order.total))}</td>
+                      <td className="p-4">
+                        <Badge className={paymentColors[order.paymentStatus]}>
+                          {paymentLabels[order.paymentStatus] || order.paymentStatus}
+                        </Badge>
+                      </td>
+                      <td className="p-4">
+                        <Badge className={statusColors[order.status]}>
+                          {statusLabels[order.status] || order.status}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-sm text-gray-500">{formatDate(order.createdAt)}</td>
+                      <td className="p-4">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedOrder(order)
+                            setNewStatus(order.status)
+                          }}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="Печать">
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Pagination */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">
-          Показано {filteredOrders.length} из {orders.length} заказов
-        </p>
-        <div className="flex gap-2">
-          <Button variant="outline" disabled>
-            Назад
-          </Button>
-          <Button variant="outline">Вперед</Button>
+      <p className="text-sm text-gray-500">Всего: {filteredOrders.length} заказов</p>
+
+      {/* Order Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-4 border-b">
+              <h2 className="text-lg font-bold">{selectedOrder.orderNumber}</h2>
+              <p className="text-sm text-gray-500">{selectedOrder.customerName} · {selectedOrder.customerPhone}</p>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-gray-500">Сумма заказа</p>
+                <p className="text-xl font-bold">{formatPrice(Number(selectedOrder.total))}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Изменить статус</label>
+                <select
+                  className="w-full border rounded-lg px-3 py-2"
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
+                >
+                  {Object.entries(statusLabels).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSelectedOrder(null)}>Закрыть</Button>
+              <Button onClick={updateStatus} disabled={saving || newStatus === selectedOrder.status}>
+                {saving ? "Сохранение..." : "Сохранить"}
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

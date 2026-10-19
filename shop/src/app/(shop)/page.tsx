@@ -25,9 +25,9 @@ const defaultSettings = {
     ],
     floatingBadge: "Скидки до 30%",
     cards: [
-      { icon: "🔥", title: "Термотрансферы", subtitle: "Премиум качество для профессионалов", price: "от 15 000 сум" },
-      { icon: "✨", title: "Винил", subtitle: "200+ видов" },
-      { icon: "🎨", title: "DTF печать", subtitle: "Всё для печати" },
+      { icon: "🔥", image: "", title: "Термотрансферы", subtitle: "Премиум качество для профессионалов", price: "от 15 000 сум" },
+      { icon: "✨", image: "", title: "Винил", subtitle: "200+ видов" },
+      { icon: "🎨", image: "", title: "DTF печать", subtitle: "Всё для печати" },
     ],
   },
   marquee: {
@@ -42,12 +42,12 @@ const defaultSettings = {
     title: "Категории товаров",
     badge: "Каталог",
     items: [
-      { name: "Термотрансферы", slug: "termotransfers", count: 150, color: "from-orange-500 to-red-500", icon: "🔥", size: "large" },
-      { name: "Виниловые наклейки", slug: "vinyl", count: 200, color: "from-purple-500 to-pink-500", icon: "✨", size: "medium" },
-      { name: "DTF печать", slug: "dtf", count: 180, color: "from-blue-500 to-cyan-500", icon: "🎨", size: "medium" },
-      { name: "UV DTF", slug: "uv-dtf", count: 120, color: "from-emerald-500 to-teal-500", icon: "💎", size: "small" },
-      { name: "Расходники", slug: "materials", count: 85, color: "from-amber-500 to-orange-500", icon: "📦", size: "small" },
-      { name: "Оборудование", slug: "equipment", count: 45, color: "from-slate-600 to-slate-800", icon: "⚙️", size: "small" },
+      { name: "Термотрансферы", slug: "termotransfers", count: 150, color: "from-orange-500 to-red-500", icon: "🔥", image: "", size: "large" },
+      { name: "Виниловые наклейки", slug: "vinyl", count: 200, color: "from-purple-500 to-pink-500", icon: "✨", image: "", size: "medium" },
+      { name: "DTF печать", slug: "dtf", count: 180, color: "from-blue-500 to-cyan-500", icon: "🎨", image: "", size: "medium" },
+      { name: "UV DTF", slug: "uv-dtf", count: 120, color: "from-emerald-500 to-teal-500", icon: "💎", image: "", size: "small" },
+      { name: "Расходники", slug: "materials", count: 85, color: "from-amber-500 to-orange-500", icon: "📦", image: "", size: "small" },
+      { name: "Оборудование", slug: "equipment", count: 45, color: "from-slate-600 to-slate-800", icon: "⚙️", image: "", size: "small" },
     ],
   },
   products: {
@@ -58,10 +58,10 @@ const defaultSettings = {
     title: "Преимущества работы с нами",
     badge: "Почему мы",
     items: [
-      { icon: "truck", title: "Быстрая доставка", description: "По всему Узбекистану за 1-3 дня" },
-      { icon: "shield", title: "Гарантия качества", description: "100% оригинальная продукция" },
-      { icon: "clock", title: "Поддержка 24/7", description: "Всегда на связи в Telegram" },
-      { icon: "package", title: "Большой выбор", description: "Более 500 товаров в наличии" },
+      { icon: "truck", image: "", title: "Быстрая доставка", description: "По всему Узбекистану за 1-3 дня" },
+      { icon: "shield", image: "", title: "Гарантия качества", description: "100% оригинальная продукция" },
+      { icon: "clock", image: "", title: "Поддержка 24/7", description: "Всегда на связи в Telegram" },
+      { icon: "package", image: "", title: "Большой выбор", description: "Более 500 товаров в наличии" },
     ],
   },
   cta: {
@@ -222,7 +222,13 @@ export default async function HomePage() {
                 {/* Main Card */}
                 {hero.cards[0] && (
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-80 bg-gradient-to-br from-primary/20 to-primary/5 backdrop-blur-xl rounded-3xl border border-primary/20 p-6 transform rotate-3 hover:rotate-0 transition-transform duration-500">
-                    <div className="text-6xl mb-4">{hero.cards[0].icon}</div>
+                    {hero.cards[0].image ? (
+                      <div className="w-20 h-20 rounded-2xl overflow-hidden mb-4">
+                        <img src={hero.cards[0].image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="text-6xl mb-4">{hero.cards[0].icon}</div>
+                    )}
                     <h3 className="text-white text-xl font-bold mb-2">{hero.cards[0].title}</h3>
                     <p className="text-gray-400 text-sm mb-4">{hero.cards[0].subtitle}</p>
                     {hero.cards[0].price && (
@@ -234,7 +240,13 @@ export default async function HomePage() {
                 {/* Floating Card 1 */}
                 {hero.cards[1] && (
                   <div className="absolute top-10 right-10 w-48 h-48 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 transform -rotate-6 hover:rotate-0 transition-transform duration-500">
-                    <div className="text-4xl mb-2">{hero.cards[1].icon}</div>
+                    {hero.cards[1].image ? (
+                      <div className="w-12 h-12 rounded-xl overflow-hidden mb-2">
+                        <img src={hero.cards[1].image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="text-4xl mb-2">{hero.cards[1].icon}</div>
+                    )}
                     <h4 className="text-white font-semibold">{hero.cards[1].title}</h4>
                     <p className="text-gray-500 text-xs">{hero.cards[1].subtitle}</p>
                   </div>
@@ -243,7 +255,13 @@ export default async function HomePage() {
                 {/* Floating Card 2 */}
                 {hero.cards[2] && (
                   <div className="absolute bottom-20 left-0 w-44 h-44 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 transform rotate-12 hover:rotate-0 transition-transform duration-500">
-                    <div className="text-4xl mb-2">{hero.cards[2].icon}</div>
+                    {hero.cards[2].image ? (
+                      <div className="w-12 h-12 rounded-xl overflow-hidden mb-2">
+                        <img src={hero.cards[2].image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="text-4xl mb-2">{hero.cards[2].icon}</div>
+                    )}
                     <h4 className="text-white font-semibold">{hero.cards[2].title}</h4>
                     <p className="text-gray-500 text-xs">{hero.cards[2].subtitle}</p>
                   </div>
@@ -303,7 +321,13 @@ export default async function HomePage() {
               {categories.items[0] && (
                 <Link href={`/catalog/${categories.items[0].slug}`} className="col-span-2 row-span-2 group">
                   <div className={`h-full bg-gradient-to-br ${categories.items[0].color} rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden`}>
-                    <div className="absolute top-0 right-0 text-[150px] opacity-20 transform translate-x-10 -translate-y-10">{categories.items[0].icon}</div>
+                    {categories.items[0].image ? (
+                      <div className="absolute top-0 right-0 w-40 h-40 opacity-30 transform translate-x-6 -translate-y-6">
+                        <img src={categories.items[0].image} alt="" className="w-full h-full object-cover rounded-2xl" />
+                      </div>
+                    ) : (
+                      <div className="absolute top-0 right-0 text-[150px] opacity-20 transform translate-x-10 -translate-y-10">{categories.items[0].icon}</div>
+                    )}
                     <div>
                       <Badge className="bg-white/20 text-white border-0 mb-2">Популярное</Badge>
                       <h3 className="text-white text-2xl font-bold">{categories.items[0].name}</h3>
@@ -321,7 +345,13 @@ export default async function HomePage() {
               {categories.items.slice(1, 3).map((cat) => (
                 <Link key={cat.slug} href={`/catalog/${cat.slug}`} className="col-span-2 group">
                   <div className={`h-full bg-gradient-to-br ${cat.color} rounded-3xl p-5 flex flex-col justify-between relative overflow-hidden`}>
-                    <div className="absolute top-0 right-0 text-[80px] opacity-20 transform translate-x-4 -translate-y-4">{cat.icon}</div>
+                    {cat.image ? (
+                      <div className="absolute top-0 right-0 w-24 h-24 opacity-30 transform translate-x-4 -translate-y-4">
+                        <img src={cat.image} alt="" className="w-full h-full object-cover rounded-xl" />
+                      </div>
+                    ) : (
+                      <div className="absolute top-0 right-0 text-[80px] opacity-20 transform translate-x-4 -translate-y-4">{cat.icon}</div>
+                    )}
                     <div>
                       <h3 className="text-white text-lg font-bold">{cat.name}</h3>
                       <p className="text-white/70 text-sm">{cat.count} товаров</p>
@@ -335,7 +365,13 @@ export default async function HomePage() {
               {categories.items.slice(3).map((cat) => (
                 <Link key={cat.slug} href={`/catalog/${cat.slug}`} className="col-span-1 md:col-span-2 lg:col-span-1 group">
                   <div className={`h-full bg-gradient-to-br ${cat.color} rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden`}>
-                    <div className="text-3xl">{cat.icon}</div>
+                    {cat.image ? (
+                      <div className="w-10 h-10 rounded-lg overflow-hidden">
+                        <img src={cat.image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="text-3xl">{cat.icon}</div>
+                    )}
                     <div>
                       <h3 className="text-white text-sm font-bold">{cat.name}</h3>
                       <p className="text-white/70 text-xs">{cat.count}</p>
@@ -432,8 +468,12 @@ export default async function HomePage() {
                 return (
                   <div key={i} className="group">
                     <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-8 border border-white/10 hover:bg-white/10 transition-colors h-full">
-                      <div className="w-14 h-14 bg-primary/20 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-primary/30 transition-colors">
-                        <IconComponent className="h-7 w-7 text-primary" />
+                      <div className="w-14 h-14 bg-primary/20 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-primary/30 transition-colors overflow-hidden">
+                        {feature.image ? (
+                          <img src={feature.image} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <IconComponent className="h-7 w-7 text-primary" />
+                        )}
                       </div>
                       <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
                       <p className="text-gray-400">{feature.description}</p>

@@ -18,6 +18,7 @@ import {
   Bell,
   Home,
   Files,
+  Ticket,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ const navigation = [
   { name: "База дизайнов", href: "/admin/designs", icon: Files },
   { name: "Категории", href: "/admin/categories", icon: FolderTree },
   { name: "Заказы", href: "/admin/orders", icon: ShoppingCart },
+  { name: "Промокоды", href: "/admin/promocodes", icon: Ticket },
   { name: "Клиенты", href: "/admin/customers", icon: Users },
   { name: "Склад", href: "/admin/warehouse", icon: Warehouse },
   { name: "Аналитика", href: "/admin/analytics", icon: BarChart3 },

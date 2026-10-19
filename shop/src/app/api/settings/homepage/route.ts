@@ -22,9 +22,9 @@ const defaultSettings = {
     ],
     floatingBadge: "Скидки до 30%",
     cards: [
-      { icon: "🔥", title: "Термотрансферы", subtitle: "Премиум качество для профессионалов", price: "от 15 000 сум" },
-      { icon: "✨", title: "Винил", subtitle: "200+ видов" },
-      { icon: "🎨", title: "DTF печать", subtitle: "Всё для печати" },
+      { icon: "🔥", image: "", title: "Термотрансферы", subtitle: "Премиум качество для профессионалов", price: "от 15 000 сум" },
+      { icon: "✨", image: "", title: "Винил", subtitle: "200+ видов" },
+      { icon: "🎨", image: "", title: "DTF печать", subtitle: "Всё для печати" },
     ],
   },
   marquee: {
@@ -40,12 +40,12 @@ const defaultSettings = {
     title: "Категории товаров",
     badge: "Каталог",
     items: [
-      { name: "Термотрансферы", slug: "termotransfers", count: 150, color: "from-orange-500 to-red-500", icon: "🔥", size: "large" },
-      { name: "Виниловые наклейки", slug: "vinyl", count: 200, color: "from-purple-500 to-pink-500", icon: "✨", size: "medium" },
-      { name: "DTF печать", slug: "dtf", count: 180, color: "from-blue-500 to-cyan-500", icon: "🎨", size: "medium" },
-      { name: "UV DTF", slug: "uv-dtf", count: 120, color: "from-emerald-500 to-teal-500", icon: "💎", size: "small" },
-      { name: "Расходники", slug: "materials", count: 85, color: "from-amber-500 to-orange-500", icon: "📦", size: "small" },
-      { name: "Оборудование", slug: "equipment", count: 45, color: "from-slate-600 to-slate-800", icon: "⚙️", size: "small" },
+      { name: "Термотрансферы", slug: "termotransfers", count: 150, color: "from-orange-500 to-red-500", icon: "🔥", image: "", size: "large" },
+      { name: "Виниловые наклейки", slug: "vinyl", count: 200, color: "from-purple-500 to-pink-500", icon: "✨", image: "", size: "medium" },
+      { name: "DTF печать", slug: "dtf", count: 180, color: "from-blue-500 to-cyan-500", icon: "🎨", image: "", size: "medium" },
+      { name: "UV DTF", slug: "uv-dtf", count: 120, color: "from-emerald-500 to-teal-500", icon: "💎", image: "", size: "small" },
+      { name: "Расходники", slug: "materials", count: 85, color: "from-amber-500 to-orange-500", icon: "📦", image: "", size: "small" },
+      { name: "Оборудование", slug: "equipment", count: 45, color: "from-slate-600 to-slate-800", icon: "⚙️", image: "", size: "small" },
     ],
   },
   products: {
@@ -59,10 +59,10 @@ const defaultSettings = {
     title: "Преимущества работы с нами",
     badge: "Почему мы",
     items: [
-      { icon: "truck", title: "Быстрая доставка", description: "По всему Узбекистану за 1-3 дня" },
-      { icon: "shield", title: "Гарантия качества", description: "100% оригинальная продукция" },
-      { icon: "clock", title: "Поддержка 24/7", description: "Всегда на связи в Telegram" },
-      { icon: "package", title: "Большой выбор", description: "Более 500 товаров в наличии" },
+      { icon: "truck", image: "", title: "Быстрая доставка", description: "По всему Узбекистану за 1-3 дня" },
+      { icon: "shield", image: "", title: "Гарантия качества", description: "100% оригинальная продукция" },
+      { icon: "clock", image: "", title: "Поддержка 24/7", description: "Всегда на связи в Telegram" },
+      { icon: "package", image: "", title: "Большой выбор", description: "Более 500 товаров в наличии" },
     ],
   },
   cta: {
