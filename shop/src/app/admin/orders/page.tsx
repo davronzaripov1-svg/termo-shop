@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Search, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -74,7 +74,7 @@ const paymentColors: Record<string, string> = {
   FAILED: "bg-red-500",
 }
 
-export default function OrdersPage() {
+function OrdersContent() {
   const searchParams = useSearchParams()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -268,5 +268,26 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function OrdersLoading() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Заказы</h1>
+      <Card>
+        <CardContent className="p-8 text-center text-gray-500">
+          Загрузка...
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={<OrdersLoading />}>
+      <OrdersContent />
+    </Suspense>
   )
 }
